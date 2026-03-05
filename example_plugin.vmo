@@ -1,0 +1,144 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// example_plugin.vmo — VimMo Demo Plugin
+// Demonstrates: lambdas, closures, async, classes, pipeline, Vim helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── 変数宣言 ─────────────────────────────────────────────────────────────────
+
+let version: string = "1.0.0"
+const MAX_ITEMS: number = 100
+
+// ── 基本関数 ─────────────────────────────────────────────────────────────────
+
+fn greet(name: string): string {
+  return "Hello, " .. name .. "!"
+}
+
+fn sum(items: list): number {
+  let total: number = 0
+  for item in items {
+    total += item
+  }
+  return total
+}
+
+// ── ラムダ / クロージャ ───────────────────────────────────────────────────────
+
+let double = (x) => x * 2
+let isEven = (x) => x % 2 == 0
+
+fn makeCounter(start: number) {
+  let count: number = start
+  let increment = () => {
+    count += 1
+    return count
+  }
+  return increment
+}
+
+// ── パイプライン演算子 ─────────────────────────────────────────────────────────
+
+fn processNumbers(nums: list): list {
+  // filter偶数 → doubleに変換
+  let evens = nums |> filter((x) => x % 2 == 0)
+  let result = evens |> map((x) => x * 2)
+  return result
+}
+
+// ── クラス ────────────────────────────────────────────────────────────────────
+
+class BufferManager {
+  let buffers: list = []
+  let current: number = 0
+
+  fn add(name: string): void {
+    self.buffers.push(name)
+  }
+
+  fn getCurrent(): string {
+    return self.buffers[self.current]
+  }
+
+  fn next(): void {
+    self.current += 1
+    if self.current >= self.buffers.len() {
+      self.current = 0
+    }
+  }
+
+  fn list(): void {
+    for buf in self.buffers {
+      echo buf
+    }
+  }
+}
+
+// ── 非同期処理 ─────────────────────────────────────────────────────────────────
+
+async fn lintFile(path: string): void {
+  echo "Linting: " .. path
+  let result = await job("python3 -m flake8 " .. path)
+  if result.exit == 0 {
+    echo "✓ No issues found"
+  } else {
+    echo "✗ Lint errors:"
+    for line in result.stdout {
+      echo "  " .. line
+    }
+  }
+}
+
+async fn runTests(): void {
+  echo "Running tests..."
+  let result = await job("pytest --tb=short -q")
+  echo "Exit code: " .. result.exit
+}
+
+// ── Vim固有ヘルパー ────────────────────────────────────────────────────────────
+
+// 保存時に自動フォーマット
+autocmd("BufWritePre", "*.py", () => {
+  echo "Auto-formatting..."
+})
+
+// カスタムコマンド
+command("VimMoLint", (args) => {
+  lintFile(args)
+})
+
+// キーマッピング
+map("n", "<leader>t", () => {
+  runTests()
+})
+
+map("n", "<leader>b", () => {
+  let mgr = new BufferManager()
+  mgr.add("index.ts")
+  mgr.add("utils.ts")
+  mgr.list()
+})
+
+// ── if/else / while ───────────────────────────────────────────────────────────
+
+fn classify(n: number): string {
+  if n < 0 {
+    return "negative"
+  } else if n == 0 {
+    return "zero"
+  } else {
+    return "positive"
+  }
+}
+
+fn countdown(n: number): void {
+  while n > 0 {
+    echo n
+    n -= 1
+  }
+  echo "Done!"
+}
+
+// ── エントリポイント ───────────────────────────────────────────────────────────
+
+echo greet("VimMo")
+echo version
