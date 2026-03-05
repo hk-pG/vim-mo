@@ -21,13 +21,13 @@ from codegen import Codegen, CodegenError
 
 def read_file(path: str) -> str:
     try:
-        return Path(path).read_text(encoding='utf-8')
+        return Path(path).read_text(encoding="utf-8")
     except FileNotFoundError:
         print(f"Error: File not found: {path}", file=sys.stderr)
         sys.exit(1)
 
 
-def compile_source(source: str, filename: str = '<input>') -> str:
+def compile_source(source: str, filename: str = "<input>") -> str:
     try:
         tokens = Lexer(source).tokenize()
         ast = Parser(tokens).parse()
@@ -49,8 +49,8 @@ def cmd_compile(args):
     if args.output:
         out_path = args.output
     else:
-        out_path = str(Path(args.input).with_suffix('.vim'))
-    Path(out_path).write_text(vim_code, encoding='utf-8')
+        out_path = str(Path(args.input).with_suffix(".vim"))
+    Path(out_path).write_text(vim_code, encoding="utf-8")
     print(f"✓ Compiled: {args.input} → {out_path}")
 
 
@@ -73,6 +73,7 @@ def cmd_tokens(args):
 
 def cmd_ast(args):
     import pprint
+
     source = read_file(args.input)
     try:
         tokens = Lexer(source).tokenize()
@@ -85,35 +86,35 @@ def cmd_ast(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        prog='vimmo',
-        description='VimMo — Modern scripting language for Vim plugin development'
+        prog="vimmo",
+        description="VimMo — Modern scripting language for Vim plugin development",
     )
-    sub = parser.add_subparsers(dest='command', required=True)
+    sub = parser.add_subparsers(dest="command", required=True)
 
     # compile
-    p_compile = sub.add_parser('compile', help='Compile .vmo → .vim')
-    p_compile.add_argument('input', help='Input .vmo file')
-    p_compile.add_argument('-o', '--output', help='Output .vim file')
+    p_compile = sub.add_parser("compile", help="Compile .vmo → .vim")
+    p_compile.add_argument("input", help="Input .vmo file")
+    p_compile.add_argument("-o", "--output", help="Output .vim file")
     p_compile.set_defaults(func=cmd_compile)
 
     # check
-    p_check = sub.add_parser('check', help='Syntax check only')
-    p_check.add_argument('input', help='Input .vmo file')
+    p_check = sub.add_parser("check", help="Syntax check only")
+    p_check.add_argument("input", help="Input .vmo file")
     p_check.set_defaults(func=cmd_check)
 
     # tokens
-    p_tokens = sub.add_parser('tokens', help='Dump token stream')
-    p_tokens.add_argument('input', help='Input .vmo file')
+    p_tokens = sub.add_parser("tokens", help="Dump token stream")
+    p_tokens.add_argument("input", help="Input .vmo file")
     p_tokens.set_defaults(func=cmd_tokens)
 
     # ast
-    p_ast = sub.add_parser('ast', help='Dump AST')
-    p_ast.add_argument('input', help='Input .vmo file')
+    p_ast = sub.add_parser("ast", help="Dump AST")
+    p_ast.add_argument("input", help="Input .vmo file")
     p_ast.set_defaults(func=cmd_ast)
 
     args = parser.parse_args()
     args.func(args)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -9,7 +9,9 @@ from ast_nodes import *
 
 class ParseError(Exception):
     def __init__(self, msg: str, token: Token):
-        super().__init__(f"ParseError at {token.line}:{token.col}: {msg} (got {token.type.name} {token.value!r})")
+        super().__init__(
+            f"ParseError at {token.line}:{token.col}: {msg} (got {token.type.name} {token.value!r})"
+        )
         self.token = token
 
 
@@ -41,7 +43,7 @@ class Parser:
             return self.advance()
         return None
 
-    def expect(self, type_: TokenType, msg: str = '') -> Token:
+    def expect(self, type_: TokenType, msg: str = "") -> Token:
         if self.check(type_):
             return self.advance()
         raise ParseError(msg or f"Expected {type_.name}", self.peek())
@@ -143,9 +145,14 @@ class Parser:
         return VarDecl(kind, name, type_ann, value)
 
     TYPE_TOKENS = {
-        TokenType.TYPE_NUMBER, TokenType.TYPE_STRING, TokenType.TYPE_BOOL,
-        TokenType.TYPE_LIST, TokenType.TYPE_DICT, TokenType.TYPE_ANY,
-        TokenType.TYPE_VOID, TokenType.IDENT,
+        TokenType.TYPE_NUMBER,
+        TokenType.TYPE_STRING,
+        TokenType.TYPE_BOOL,
+        TokenType.TYPE_LIST,
+        TokenType.TYPE_DICT,
+        TokenType.TYPE_ANY,
+        TokenType.TYPE_VOID,
+        TokenType.IDENT,
     }
 
     def parse_type(self) -> str:
@@ -153,12 +160,17 @@ class Parser:
         return tok.value
 
     _IDENT_LIKE = {
-        TokenType.IDENT, TokenType.TYPE_NUMBER, TokenType.TYPE_STRING,
-        TokenType.TYPE_BOOL, TokenType.TYPE_LIST, TokenType.TYPE_DICT,
-        TokenType.TYPE_ANY, TokenType.TYPE_VOID,
+        TokenType.IDENT,
+        TokenType.TYPE_NUMBER,
+        TokenType.TYPE_STRING,
+        TokenType.TYPE_BOOL,
+        TokenType.TYPE_LIST,
+        TokenType.TYPE_DICT,
+        TokenType.TYPE_ANY,
+        TokenType.TYPE_VOID,
     }
 
-    def expect_ident_like(self, msg: str = 'Expected identifier') -> Token:
+    def expect_ident_like(self, msg: str = "Expected identifier") -> Token:
         if self.peek().type in self._IDENT_LIKE:
             return self.advance()
         raise ParseError(msg, self.peek())
@@ -190,7 +202,9 @@ class Parser:
 
     def parse_return(self) -> Return:
         self.expect(TokenType.RETURN)
-        if self.check(TokenType.NEWLINE, TokenType.SEMICOLON, TokenType.RBRACE, TokenType.EOF):
+        if self.check(
+            TokenType.NEWLINE, TokenType.SEMICOLON, TokenType.RBRACE, TokenType.EOF
+        ):
             return Return(None)
         return Return(self.parse_expr())
 
@@ -380,7 +394,7 @@ class Parser:
 
         if tok.type == TokenType.BOOL:
             self.advance()
-            return BoolLit(tok.value == 'true')
+            return BoolLit(tok.value == "true")
 
         if tok.type == TokenType.NULL:
             self.advance()
@@ -388,7 +402,7 @@ class Parser:
 
         if tok.type == TokenType.SELF:
             self.advance()
-            return Ident('self')
+            return Ident("self")
 
         if tok.type == TokenType.IDENT:
             self.advance()
