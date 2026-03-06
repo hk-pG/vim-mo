@@ -1,0 +1,10 @@
+fn makeCounter(): void {
+  let count = 0
+  let inc = () => {
+    count = count + 1
+    echo count
+  }
+  inc()
+  inc()
+}
+makeCounter()

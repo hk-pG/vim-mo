@@ -1,0 +1,15 @@
+let arr = [1, 2, 3]
+arr.push(4)
+echo arr.len()
+echo arr.pop()
+
+let filtered = arr.filter((x) => x > 2)
+echo filtered
+
+let mapped = arr.map((x) => x * 2)
+echo mapped
+
+let d = {a: 1, b: 2}
+echo d.keys()
+echo d.values()
+echo d.has("a")

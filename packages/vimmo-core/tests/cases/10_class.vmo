@@ -1,0 +1,12 @@
+class Counter {
+  let count = 0
+  fn increment(): void {
+    self.count = self.count + 1
+  }
+  fn get(): number {
+    return self.count
+  }
+}
+let c = new Counter()
+c.increment()
+echo c.get()

@@ -1,0 +1,8 @@
+async fn fetchData(): void {
+  let result = await job("echo 'hello'")
+  echo result
+}
+
+fn main(): void {
+  fetchData()
+}
