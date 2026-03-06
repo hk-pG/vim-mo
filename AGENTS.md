@@ -152,3 +152,22 @@ npm run compile  # If using TypeScript
 | `packages/vimmo-core/tests/cases/*.vim` | Expected Vim output |
 | `tests/run_tests.py` | Test runner |
 | `DESIGN.md` | Language design spec |
+
+### ADR (Architecture Decision Records)
+
+- 重要な設計決定を行った場合は `reports/ADR-XXX-{feature-name}.md` にADRを記録する
+- ADRには以下を含める:
+  - ステータス (草案/承認済み/Deprecated)
+  - 決定事項
+  - 変更されたファイル
+  - テスト結果
+
+### 作業完了時の記録
+
+- 作業終了時に `reports/` にmarkdown形式で作業内容を記録する
+- ファイル名: `YYYYMMDD-{model-name}-summary.md`
+- 記録内容:
+  - 完了したタスク
+  - 新規作成/変更したファイル
+  - テスト結果
+  - 次のステップ

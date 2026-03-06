@@ -3,15 +3,15 @@ VimMo AST Node definitions
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Any, Union
+from typing import List, Optional, Any, Union, NoReturn
 
 
 # ── Base ──────────────────────────────────────────────────────────────────────
 
 
-@dataclass
 class Node:
-    pass
+    line: Optional[int] = None
+    col: Optional[int] = None
 
 
 # ── Expressions ───────────────────────────────────────────────────────────────
@@ -40,6 +40,8 @@ class NullLit(Node):
 @dataclass
 class Ident(Node):
     name: str
+    line: Optional[int] = None
+    col: Optional[int] = None
 
 
 @dataclass
@@ -93,7 +95,7 @@ class Attr(Node):
 @dataclass
 class Call(Node):
     callee: Node
-    args: List[Node]
+    args: List[Node] = field(default_factory=list)
 
 
 @dataclass
@@ -126,16 +128,16 @@ class New(Node):
 class VarDecl(Node):
     kind: str  # 'let' or 'const'
     name: str
-    type_ann: Optional[str]
-    value: Optional[Node]
+    type_ann: Optional[str] = None
+    value: Optional[Node] = None
 
 
 @dataclass
 class FnDecl(Node):
     name: str
     params: List[tuple]  # (name, type_ann_or_None)
-    return_type: Optional[str]
-    body: "Block"
+    return_type: Optional[str] = None
+    body: "Block" = None
     is_async: bool = False
 
 
@@ -199,8 +201,8 @@ class Import(Node):
 @dataclass
 class ClassDecl(Node):
     name: str
-    fields: List[VarDecl]
-    methods: List[FnDecl]
+    fields: List[VarDecl] = field(default_factory=list)
+    methods: List[FnDecl] = field(default_factory=list)
 
 
 @dataclass

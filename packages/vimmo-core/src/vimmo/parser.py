@@ -114,6 +114,7 @@ class Parser:
         return Import(names, source)
 
     def parse_class(self) -> ClassDecl:
+        tok = self.peek()
         self.expect(TokenType.CLASS)
         name = self.expect(TokenType.IDENT).value
         self.expect(TokenType.LBRACE)
@@ -131,18 +132,26 @@ class Parser:
                 raise ParseError("Expected field or method in class", self.peek())
             self.skip_newlines_and_semi()
         self.expect(TokenType.RBRACE)
-        return ClassDecl(name, fields, methods)
+        cls = ClassDecl(name, fields, methods)
+        cls.line = tok.line
+        cls.col = tok.col
+        return cls
 
     def parse_var_decl(self) -> VarDecl:
+        tok = self.peek()
         kind = self.advance().value  # let / const
-        name = self.expect(TokenType.IDENT).value
+        name_tok = self.expect(TokenType.IDENT)
+        name = name_tok.value
         type_ann = None
         if self.match(TokenType.COLON):
             type_ann = self.parse_type()
         value = None
         if self.match(TokenType.EQ):
             value = self.parse_expr()
-        return VarDecl(kind, name, type_ann, value)
+        decl = VarDecl(kind, name, type_ann, value)
+        decl.line = tok.line
+        decl.col = tok.col
+        return decl
 
     TYPE_TOKENS = {
         TokenType.TYPE_NUMBER,
@@ -176,6 +185,7 @@ class Parser:
         raise ParseError(msg, self.peek())
 
     def parse_fn(self, is_async: bool = False) -> FnDecl:
+        tok = self.peek()
         if is_async:
             self.expect(TokenType.ASYNC)
         self.expect(TokenType.FN)
@@ -185,7 +195,10 @@ class Parser:
         if self.match(TokenType.COLON):
             ret = self.parse_type()
         body = self.parse_block()
-        return FnDecl(name, params, ret, body, is_async)
+        fn = FnDecl(name, params, ret, body, is_async)
+        fn.line = tok.line
+        fn.col = tok.col
+        return fn
 
     def parse_params(self) -> List[Tuple[str, Optional[str]]]:
         self.expect(TokenType.LPAREN)
@@ -269,7 +282,7 @@ class Parser:
         while True:
             self.skip_newlines()
             if self.match(TokenType.PIPE):
-                self.skip_newlines() # allow newline after pipe
+                self.skip_newlines()  # allow newline after pipe
                 right = self.parse_assign()
                 left = Pipeline(left, right)
             else:
@@ -355,8 +368,12 @@ class Parser:
         expr = self.parse_primary()
         while True:
             if self.check(TokenType.LPAREN):
+                tok = self.peek()
                 args = self.parse_args()
-                expr = Call(expr, args)
+                call = Call(expr, args)
+                call.line = tok.line
+                call.col = tok.col
+                expr = call
             elif self.check(TokenType.DOT):
                 self.advance()
                 attr = self.expect_ident_like().value
@@ -407,11 +424,11 @@ class Parser:
 
         if tok.type == TokenType.SELF:
             self.advance()
-            return Ident("self")
+            return Ident("self", tok.line, tok.col)
 
         if tok.type == TokenType.IDENT:
             self.advance()
-            return Ident(tok.value)
+            return Ident(tok.value, tok.line, tok.col)
 
         if tok.type == TokenType.NEW:
             self.advance()
