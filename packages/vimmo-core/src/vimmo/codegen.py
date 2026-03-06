@@ -22,9 +22,10 @@ class Codegen:
         # class names known
         self._classes: set = set()
         # Scope management
-        self.scope_stack: List[dict] = []  # {'kind': 'fn'|'lambda', 'params': set}
+        self.scope_stack: List[dict] = []  # {'kind': 'fn'|'lambda', 'params': set, 'funcref_vars': set}
         self.function_depth = 0
         self.script_vars: set = set()  # Variables defined at script scope (s:)
+        self._script_funcref_vars: set = set()  # Funcref vars at script scope (need capitalization)
 
     def enter_scope(self, kind: str, params: List[str]):
         self.scope_stack.append({"kind": kind, "params": set(params)})
@@ -35,6 +36,26 @@ class Codegen:
         scope = self.scope_stack.pop()
         if scope["kind"] == "fn":
             self.function_depth -= 1
+
+    def _register_funcref_var(self, name: str):
+        """Mark a variable as holding a funcref (requires capital-first name in VimScript)."""
+        if self.scope_stack:
+            self.scope_stack[-1].setdefault("funcref_vars", set()).add(name)
+        else:
+            self._script_funcref_vars.add(name)
+
+    def _is_funcref_var(self, name: str) -> bool:
+        """Return True if name was registered as a funcref variable in any enclosing scope."""
+        for scope in reversed(self.scope_stack):
+            if name in scope.get("funcref_vars", set()):
+                return True
+        return name in self._script_funcref_vars
+
+    def _cap_funcref_name(self, name: str) -> str:
+        """Capitalize first letter if name is a registered funcref variable."""
+        if self._is_funcref_var(name) and name and name[0].islower():
+            return name[0].upper() + name[1:]
+        return name
 
     def indent(self) -> str:
         return "  " * self.indent_level
@@ -116,8 +137,10 @@ class Codegen:
             for s in node.stmts:
                 self.gen_stmt(s)
         elif isinstance(node, Assign):
-            target = self.gen_expr(node.target)
+            if isinstance(node.value, Lambda) and isinstance(node.value.body, Block) and isinstance(node.target, Ident):
+                self._register_funcref_var(node.target.name)
             val = self.gen_expr(node.value)
+            target = self.gen_expr(node.target)
             self.emit(f"let {target} = {val}")
         elif isinstance(node, AugAssign):
             target = self.gen_expr(node.target)
@@ -140,8 +163,10 @@ class Codegen:
             self.script_vars.add(node.name)
 
         scope = "l" if not is_script_scope else "s"
+        if isinstance(node.value, Lambda) and isinstance(node.value.body, Block):
+            self._register_funcref_var(node.name)
         val = self.gen_expr(node.value) if node.value else "0"
-        self.emit(f"let {scope}:{node.name} = {val}")
+        self.emit(f"let {scope}:{self._cap_funcref_name(node.name)} = {val}")
 
     def gen_fn_decl(self, node: FnDecl):
         params = [p for p, _ in node.params]
@@ -368,12 +393,12 @@ class Codegen:
 
         # Check if it's a known script-level variable or class name
         if name in self.script_vars or name in self._classes:
-            return f"s:{name}"
+            return f"s:{self._cap_funcref_name(name)}"
 
         # Local scope inside function
         if self.function_depth > 0:
-            return f"l:{name}"
-        return f"s:{name}"
+            return f"l:{self._cap_funcref_name(name)}"
+        return f"s:{self._cap_funcref_name(name)}"
 
     def gen_binop(self, node: BinOp) -> str:
         l = self.gen_expr(node.left)
@@ -466,29 +491,21 @@ class Codegen:
     def gen_lambda(self, node: Lambda) -> str:
         params = ", ".join(node.params)
         if isinstance(node.body, Block):
-            # Multi-line lambda → named helper function emitted at top level
             fname = f"s:__lambda_{self._lambda_counter}"
             self._lambda_counter += 1
-            # Emit helper function at current position
-            saved_indent = self.indent_level
-
-            # Fix: Only add 'closure' if nested (but we are hoisting to top level, so it's tricky)
-            # For now, if we hoist to top level, we cannot support closure capture.
-            # So we remove 'closure'.
-            # Ideally we should support inline definition for closures.
-
-            self.indent_level = 0
-            self.emit(f"function! {fname}({params})")  # Removed 'closure' to avoid E932
-
+            # Emit inline at current indentation so nested functions can use 'closure'
+            # to capture l: variables from the enclosing function (Vim 8+ feature).
+            is_nested = self.function_depth > 0
+            closure_attr = " closure" if is_nested else ""
+            self.emit(f"function! {fname}({params}){closure_attr}")
             self.enter_scope("fn", node.params)
-            self.indent_level = 1
+            self.indent_level += 1
             for s in node.body.stmts:
                 self.gen_stmt(s)
+            self.indent_level -= 1
             self.leave_scope()
-            self.indent_level = 0
-            self.emit(f"endfunction")
+            self.emit("endfunction")
             self.emit("")
-            self.indent_level = saved_indent
             return f'function("{fname}")'
         else:
             self.enter_scope("lambda", node.params)
@@ -503,59 +520,15 @@ class Codegen:
     def _emit_lambda_fn(
         self, node: Lambda, params_override: Optional[List[str]] = None
     ) -> str:
-        """Emit a lambda as a named function and return its name (not a funcref string)."""
+        """Emit a lambda as a named function inline at current indentation and return its name."""
         params = params_override or node.params
         fname = f"s:__lambda_{self._lambda_counter}"
         self._lambda_counter += 1
-        saved_indent = self.indent_level
-        self.indent_level = 0
         param_str = ", ".join(params)
-
-        # Only mark as closure if we are inside another function and capturing variables?
-        # Vim requires 'closure' only if it accesses outer local variables.
-        # However, our design hoists lambdas to script level.
-        # A script-level function cannot be a closure capturing function-local variables
-        # unless it is defined *inside* that function.
-        # But we are emitting it at script level (indent 0).
-        # Wait, if we emit it at script level, it CANNOT capture l: variables from the call site
-        # unless we pass them explicitly or define the function *inside* the caller.
-        # Our current codegen strategy hoists lambdas to top-level s: functions.
-        # This breaks closures!
-
-        # Correct strategy for closures in Vim:
-        # function! s:outer()
-        #   let l:x = 1
-        #   function! s:inner() closure
-        #     return l:x
-        #   endfunction
-        #   return funcref("s:inner")
-        # endfunction
-
-        # So we must emit the lambda definition at the CURRENT indentation level (or top level if at top),
-        # not force it to top level, IF we want it to capture scope.
-        # But if we emit it inline, we can't easily name it s:__lambda_N unless we are careful about uniqueness per call?
-        # Actually s: names are script-global. Nested functions usually just use s: name but are redefined on each call?
-        # No, in Vim, s: functions are defined once.
-        # To have true closures, we usually use dictionaries or just accept that Vim 8 lambdas {-> ...} are better.
-        # Our generator tries to support multi-line lambdas by turning them into functions.
-
-        # FIX: For now, let's just remove 'closure' if we are at top level.
-        # And if we are NOT at top level, we should probably emit it *inside* the current function
-        # to allow capturing l: vars.
-
-        is_nested = saved_indent > 0
+        is_nested = self.function_depth > 0
         closure_attr = " closure" if is_nested else ""
 
-        # If nested, we emit AT the current indentation so it's inside the parent function.
-        # If top level, we emit at top level.
-
-        if is_nested:
-            self.indent_level = saved_indent
-            self.emit(f"function! {fname}({param_str}){closure_attr}")
-        else:
-            self.indent_level = 0
-            self.emit(f"function! {fname}({param_str}){closure_attr}")
-
+        self.emit(f"function! {fname}({param_str}){closure_attr}")
         self.enter_scope("fn", params)
         self.indent_level += 1
         if isinstance(node.body, Block):
@@ -565,50 +538,8 @@ class Codegen:
             self.emit(f"return {self.gen_expr(node.body)}")
         self.indent_level -= 1
         self.leave_scope()
-        self.emit(f"endfunction")
-
-        # If nested, we need to ensure we didn't break the surrounding flow.
-        # But wait, emitting a function definition inside another function in Vim is slow
-        # (redefined every time).
-        # But it IS the way to do closures with named functions.
-        # Alternatively, we can just use lambda syntax {->} for everything if we can support multiple statements?
-        # No, Vim lambdas are expressions.
-
-        # Let's revert to hoisting to top level but REMOVE 'closure' if not needed?
-        # If we hoist to top level, we CANNOT access l: variables of the parent.
-        # So 'closure' keyword at top level is indeed an error.
-
-        # If the user expects a closure (capturing l: vars), our hoisting strategy is broken.
-        # But fixing that is complex.
-        # The error reported is "Closure function should not be at top level".
-        # This happens because we emitted `function! ... closure` at indent 0.
-
-        # Simple fix for the error: Only add 'closure' if we are emitting inside a function.
-        # BUT we currently force indent_level = 0.
-
-        # Strategy:
-        # 1. If we are at top level (saved_indent == 0), emit without 'closure'.
-        # 2. If we are nested, we SHOULD emit inline to support closure, OR emit at top without closure (breaking capture).
-        # Let's stick to "Emit at top level, no closure" for now to fix the crash.
-        # This means multi-line lambdas won't capture local variables. That is a known limitation we accept for now.
-
-        self.indent_level = 0
-        self.emit(
-            f"function! {fname}({param_str})"
-        )  # Removed 'closure' for hoisted functions
-
-        self.enter_scope("fn", params)
-        self.indent_level = 1
-        if isinstance(node.body, Block):
-            for s in node.body.stmts:
-                self.gen_stmt(s)
-        else:
-            self.emit(f"return {self.gen_expr(node.body)}")
-        self.indent_level = 0
-        self.leave_scope()
-        self.emit(f"endfunction")
+        self.emit("endfunction")
         self.emit("")
-        self.indent_level = saved_indent
         return fname
 
     def gen_pipeline(self, node: Pipeline) -> str:

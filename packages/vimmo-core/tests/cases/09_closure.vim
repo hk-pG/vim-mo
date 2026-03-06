@@ -5,14 +5,14 @@ scriptencoding utf-8
 
 function! s:makeCounter()
   let l:count = 0
-function! s:__lambda_0()
-  let l:count = (l:count + 1)
-  echo l:count
-endfunction
-
-  let l:inc = function("s:__lambda_0")
-  call l:inc()
-  call l:inc()
+  function! s:__lambda_0() closure
+    let l:count = (l:count + 1)
+    echo l:count
+  endfunction
+  
+  let l:Inc = function("s:__lambda_0")
+  call l:Inc()
+  call l:Inc()
 endfunction
 
 call s:makeCounter()
