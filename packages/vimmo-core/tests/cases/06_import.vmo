@@ -1,0 +1,7 @@
+import { VimmoAdd, VimmoGreet } from "./06_utils"
+
+let sum = VimmoAdd(3, 4)
+echo sum
+
+let msg = VimmoGreet("VimMo")
+echo msg

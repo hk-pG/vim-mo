@@ -26,6 +26,7 @@ class Codegen:
         self.function_depth = 0
         self.script_vars: set = set()  # Variables defined at script scope (s:)
         self._script_funcref_vars: set = set()  # Funcref vars at script scope (need capitalization)
+        self._imported_names: set = set()  # Names imported from other modules (global scope, no prefix)
 
     def enter_scope(self, kind: str, params: List[str]):
         self.scope_stack.append({"kind": kind, "params": set(params)})
@@ -296,6 +297,8 @@ class Codegen:
 
     def gen_import(self, node: Import):
         self.emit(f"source {node.source}.vim")
+        for name in node.names:
+            self._imported_names.add(name)
 
     def gen_class(self, node: ClassDecl):
         self._classes.add(node.name)
@@ -381,6 +384,10 @@ class Codegen:
             return "l:self"
         # Built-in Vim variables
         if name.startswith("g:") or name.startswith("v:") or name.startswith("a:"):
+            return name
+
+        # Imported names are global (no scope prefix)
+        if name in self._imported_names:
             return name
 
         # Check current scope stack (arguments)
