@@ -68,7 +68,13 @@ PYTHONPATH=packages/vimmo-core/src python packages/vimmo-core/src/vimmo/vimmo.py
 2. `docker compose run --rm test` で全テスト実行
 3. Vim runtime error がなければ PASS
 
-## ADR・作業サマリー
+## ADR・作業サマリー (`reports/`)
 
-重要な設計変更は `reports/ADR-XXX-{name}.md` に記録。
-作業完了時は `reports/YYYYMMDD-{model}-summary.md` を作成（詳細は `AGENTS.md` 参照）。
+`reports/` ディレクトリには以下の2種類のファイルを記録する:
+
+| ファイル名パターン | 内容 | タイミング |
+|-----------------|------|---------|
+| `ADR-XXX-{name}.md` | 重要な設計決定の記録（背景・決定事項・変更ファイル・テスト結果） | 設計変更を行ったとき |
+| `YYYYMMDD-{model}-summary.md` | 作業サマリー（完了タスク・変更ファイル一覧・テスト結果・次のステップ） | 作業完了時 |
+
+詳細フォーマットは `AGENTS.md` の「ADR」「作業完了時の記録」セクションを参照。
