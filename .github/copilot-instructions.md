@@ -1,12 +1,74 @@
 # GitHub Copilot Instructions
 
-このリポジトリで作業する際は、まず **`AGENTS.md`** を参照してください。
+まず **`AGENTS.md`** を参照してください。プロジェクトの開発標準（テスト実行・コード規約・VimScript制約・コミット規約等）がまとめられています。
 
-`AGENTS.md` にはこのプロジェクトの開発標準がまとめられています:
+---
 
-- プロジェクト構成とファイルの場所
-- テストの実行方法（Docker 推奨）
-- コードスタイルと命名規約
-- VimScript の制約・落とし穴 (E704, E121, E932 等)
-- Git コミット規約 (Conventional Commits)
-- ADR・作業サマリーの記録ルール
+## Build & Test
+
+```bash
+# テスト実行（Docker 推奨）
+docker compose run --rm test
+
+# 単一ファイルのコンパイル確認
+docker compose run --rm vimmo python packages/vimmo-core/src/vimmo/vimmo.py compile <file.vmo> -o /tmp/out.vim
+
+# デバッグ用ダンプ
+PYTHONPATH=packages/vimmo-core/src python packages/vimmo-core/src/vimmo/vimmo.py tokens <file.vmo>
+PYTHONPATH=packages/vimmo-core/src python packages/vimmo-core/src/vimmo/vimmo.py ast <file.vmo>
+```
+
+テストランナー (`tests/run_tests.py`) は `.vmo` をコンパイルして Vim/Neovim で実行し、exit code だけをチェックする。`.vim` ファイルは毎回上書き再生成される（期待値との diff 比較はしない）。
+
+## Architecture
+
+```
+.vmo source
+  └─ Lexer (lexer.py)        → List[Token]
+       └─ Parser (parser.py) → AST (ast_nodes.py の @dataclass)
+            └─ Codegen (codegen.py) → VimScript 文字列
+```
+
+- `vimmo.py` が CLI エントリポイントとしてパイプラインを統括
+- `vimmo-ls/` は pygls ベースの LSP サーバー（リアルタイム診断・定義ジャンプ）
+- `vscode-vimmo/` は VS Code 拡張（文法ハイライト + LSP クライアント）
+
+## Codegen の主要パターン
+
+**スコープ管理**
+
+`function_depth == 0` → スクリプトスコープ (`s:`)、`> 0` → ローカルスコープ (`l:`)。
+`scope_stack` の各エントリは `{'kind': 'fn'|'lambda', 'params': set, 'funcref_vars': set}`。
+
+**Lambda の生成戦略**
+
+- Block body (`() => { ... }`) → 囲む関数の内部に `function! s:__lambda_N() closure` として inline 定義（ネスト時のみ `closure`）。外側の `l:` 変数をキャプチャできる。
+- Expression body (`(x) => x * 2`) → Vim ネイティブラムダ `{x -> x * 2}` に変換。
+
+**Funcref 変数の命名規則 (E704 対応)**
+
+`l:`/`s:` スコープで funcref を保持する変数は大文字始まりが必要（VimScript 仕様）。
+`_register_funcref_var()` で登録 → `_cap_funcref_name()` で `inc` → `Inc` に自動変換。
+
+**非同期 (`await job(...)`)**
+
+コールバック用のヘルパー関数 (`__job_N_out`, `__job_N_exit`) を自動生成し、スピンウェイトループで結果を待つ。
+
+## VimScript の既知の制約
+
+| エラー | 原因 | 対処 |
+|--------|------|------|
+| E704 | `l:inc = function(...)` — 小文字始まりの funcref 変数 | `_cap_funcref_name()` で自動キャピタライズ |
+| E121 | トップレベルにホイストされたラムダが外側の `l:` 変数を参照 | inline 定義 + `closure` キーワード |
+| E932 | トップレベル関数に `closure` を付けた | `function_depth == 0` のとき `closure` を省略 |
+
+## テストケースの追加
+
+1. `packages/vimmo-core/tests/cases/NN_name.vmo` を作成
+2. `docker compose run --rm test` で全テスト実行
+3. Vim runtime error がなければ PASS
+
+## ADR・作業サマリー
+
+重要な設計変更は `reports/ADR-XXX-{name}.md` に記録。
+作業完了時は `reports/YYYYMMDD-{model}-summary.md` を作成（詳細は `AGENTS.md` 参照）。
