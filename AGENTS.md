@@ -22,7 +22,20 @@ vim-mo/
 - Python 3.14+
 - Vim installed (for running tests)
 
-### Running All Tests
+### Running All Tests (Docker — 推奨)
+
+テストは **Docker を使って実行する**。ホスト環境の Python バージョンや `vim` コマンドへの依存を避けられる。
+
+```bash
+docker compose run --rm test
+```
+
+内部では Neovim (`nvim`) を `vim` として symlink して使用している。
+
+### Running All Tests (ホスト環境)
+
+Docker が使えない場合:
+
 ```bash
 cd /Users/hk-p/repo/vim-mo
 python tests/run_tests.py
@@ -99,9 +112,10 @@ npm run compile  # If using TypeScript
 ### VimMo Language (.vmo files)
 
 **Test Case Format**
-- Each test has a `.vmo` source file and expected `.vim` output
+- Each test has a `.vmo` source file and a `.vim` compiled output file
 - Tests are in `packages/vimmo-core/tests/cases/`
 - Naming: `NN_name.vmo` and `NN_name.vim` (e.g., `01_variables.vmo`)
+- **注意**: `.vim` ファイルはテストランナーが毎回コンパイルして**上書き再生成**する。期待値との比較は行わず、Vim 実行時の exit code のみをチェックする。`.vim` ファイルはコミットしてよいが、テスト実行のたびに変わりうる。
 
 **When Adding Tests**
 1. Create `NN_feature.vmo` with VimMo source code
@@ -131,13 +145,39 @@ npm run compile  # If using TypeScript
 - Use `emit(line)` for outputting VimScript
 - Track scope with `enter_scope()` / `leave_scope()`
 - Handle scope prefixes: `s:` (script), `l:` (local), `a:` (argument)
+- `function_depth` で現在のネスト深さを追跡（0 = スクリプトレベル）
+- `scope_stack` の各エントリは `{'kind': 'fn'|'lambda', 'params': set, 'funcref_vars': set}` の構造
+- funcref を保持する変数は `_register_funcref_var()` で登録し `_cap_funcref_name()` でキャピタライズ
+
+### Git コミット規約
+
+Conventional Commits 形式を使用する:
+
+```
+<type>(<scope>): <概要（日本語可）>
+
+<本文（任意）>
+```
+
+| type | 用途 |
+|------|------|
+| `feat` | 新機能 |
+| `fix` | バグ修正 |
+| `docs` | ドキュメントのみの変更 |
+| `refactor` | 機能変更を伴わないリファクタリング |
+| `test` | テストの追加・修正 |
+| `chore` | ビルド設定・依存関係等の変更 |
+
+scope は変更対象モジュール名（例: `codegen`, `parser`, `lexer`, `ls`）。
 
 ### Common Pitfalls
 
 1. **Python version**: This project requires Python 3.14+ (check `.python-version`)
 2. **PYTHONPATH**: When running vimmo CLI, set `PYTHONPATH=src`
-3. **Vim runtime**: Some features require Vim 8+ (e.g., lambdas, jobs)
-4. **Test dependencies**: Tests require `vim` command available in PATH
+3. **Vim runtime**: Some features require Vim 8+ / Neovim (e.g., lambdas, closures, jobs)
+4. **Test dependencies**: Tests require `vim` command available in PATH (Docker 環境では nvim を symlink)
+5. **VimScript funcref 変数名制約 (E704)**: `l:` / `s:` スコープの変数が funcref を保持する場合、変数名は**大文字で始まる必要**がある (`l:Inc` は OK、`l:inc` は NG)。codegen でラムダを変数に代入する際はキャピタライズが必要。
+6. **VimScript closure (E121 / E932)**: multi-line ラムダをスクリプトトップレベルにホイストすると外側の `l:` 変数をキャプチャできない。囲む関数の**内部で定義**し `closure` キーワードを付与すること (Vim 8+ / Neovim 必須)。トップレベル関数に `closure` を付けると E932 エラーになる。
 
 ### File Locations
 
