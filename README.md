@@ -1,6 +1,23 @@
 # VimMo
 
-VimMoはTypeScript-like言語をVimScriptにコンパイルするトランスペイラーです。
+VimMoはTypeScript-like言語をVimScriptにコンパイルするトランスパイラーです。
+詳細な言語仕様は [DESIGN.md](DESIGN.md) を参照してください。
+
+```vmo
+fn greet(name: string): string {
+  return "Hello, " .. name .. "!"
+}
+
+let nums = [1, 2, 3, 4, 5]
+let doubled = nums |> filter((x) => x % 2 == 0) |> map((x) => x * 2)
+
+echo greet("VimMo")
+```
+
+## 前提条件
+
+- Python 3.14+
+- Vim（テスト実行時）
 
 ## クイックスタート
 
@@ -9,6 +26,19 @@ VimMoはTypeScript-like言語をVimScriptにコンパイルするトランスペ
 ```bash
 cd packages/vimmo-core
 PYTHONPATH=src python src/vimmo/vimmo.py compile input.vmo -o output.vim
+```
+
+### その他のCLIコマンド
+
+```bash
+# 構文チェックのみ
+PYTHONPATH=src python src/vimmo/vimmo.py check input.vmo
+
+# トークン列を表示（デバッグ用）
+PYTHONPATH=src python src/vimmo/vimmo.py tokens input.vmo
+
+# ASTを表示（デバッグ用）
+PYTHONPATH=src python src/vimmo/vimmo.py ast input.vmo
 ```
 
 ### LSPサーバー（Neovim）
@@ -20,7 +50,7 @@ cd packages/vimmo-ls
 pip install -e .
 ```
 
-#### Neovim設定 (AstroNvim)
+#### Neovim設定（AstroNvim）
 
 `lua/plugins/astrolsp.lua` に以下を追加:
 
