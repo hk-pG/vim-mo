@@ -1,0 +1,141 @@
+// examples/todo_plugin.vmo
+// A simple ToDo List plugin demonstrating VimMo capabilities
+
+// ── 1. Constants & Variables ─────────────────────────────────────────────────
+const PLUGIN_NAME: string = "VimMoTodo"
+const VERSION: string = "0.1.0"
+let debugMode: bool = true
+
+// ── 2. Data Classes ──────────────────────────────────────────────────────────
+
+class TodoItem {
+  let id: number = 0
+  let title: string = ""
+  let done: bool = false
+  let created: string = ""
+
+  // Constructor-like method (manual init for now)
+  fn init(id: number, title: string) {
+    self.id = id
+    self.title = title
+    self.done = false
+    self.created = "now"
+  }
+
+  fn toggle() {
+    self.done = !self.done
+  }
+
+  fn format(): string {
+    let mark = "[ ]"
+    if self.done {
+      mark = "[x]"
+    }
+    return mark .. " " .. self.title .. " (ID: " .. self.id .. ")"
+  }
+}
+
+class TodoManager {
+  let tasks: list = []
+  let nextId: number = 1
+
+  fn add(title: string) {
+    let item = new TodoItem()
+    item.init(self.nextId, title)
+    self.tasks.push(item)
+    self.nextId += 1
+    echo "Added: " .. title
+  }
+
+  fn listAll() {
+    echo "=== " .. PLUGIN_NAME .. " List ==="
+    if self.tasks.len() == 0 {
+      echo "  (No tasks)"
+      return
+    }
+    for task in self.tasks {
+      echo "  " .. task.format()
+    }
+  }
+
+  fn listActive() {
+    // Pipeline usage: filter only active tasks
+    let activeTasks = self.tasks 
+      |> filter((t) => !t.done)
+    
+    echo "=== Active Tasks ==="
+    if activeTasks.len() == 0 {
+      echo "  (No active tasks)"
+    }
+    for task in activeTasks {
+      echo "  " .. task.format()
+    }
+  }
+
+  fn complete(idStr: string) {
+    // Note: In Vim script, strings convert to numbers for comparison automatically
+    for task in self.tasks {
+      if task.id == idStr {
+        task.toggle()
+        echo "Toggled task " .. task.id
+        return
+      }
+    }
+    echo "Task not found: " .. idStr
+  }
+
+  async fn saveToFile(path: string) {
+    echo "Saving to " .. path .. "..."
+    // Simulate async file write via job
+    let result = await job("sleep 1 && echo 'Saved'")
+    
+    if result.exit == 0 {
+      echo "Save complete!"
+    } else {
+      echo "Save failed."
+    }
+  }
+}
+
+// ── 3. Initialization & Usage ────────────────────────────────────────────────
+
+let manager = new TodoManager()
+
+// Add some initial data
+manager.add("Learn VimMo Syntax")
+manager.add("Write a cool plugin")
+manager.complete(1) // Mark first task as done
+
+// ── 4. Vim Integration ───────────────────────────────────────────────────────
+
+// Commands to expose functionality
+command("TodoAdd", (args) => {
+  manager.add(args)
+})
+
+command("TodoList", () => {
+  manager.listAll()
+})
+
+command("TodoActive", () => {
+  manager.listActive()
+})
+
+command("TodoToggle", (args) => {
+  manager.complete(args)
+})
+
+// Mappings
+map("n", "<leader>ta", () => manager.add("New Task"))
+map("n", "<leader>tl", () => manager.listAll())
+map("n", "<leader>tt", () => manager.complete(1))
+
+// Autocmd
+autocmd("VimEnter", "*", () => {
+  if debugMode {
+    echo "VimMo Todo Plugin Loaded: " .. VERSION
+  }
+})
+
+// Show list on load for demo
+manager.listAll()

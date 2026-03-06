@@ -1,0 +1,38 @@
+{
+    "name": "vscode-vimmo",
+    "displayName": "VimMo Language Support",
+    "description": "Language support for VimMo (Vim Modern)",
+    "version": "0.1.0",
+    "engines": {
+        "vscode": "^1.75.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "activationEvents": [
+        "onLanguage:vimmo"
+    ],
+    "main": "./dist/extension.js",
+    "contributes": {
+        "languages": [
+            {
+                "id": "vimmo",
+                "aliases": [
+                    "VimMo",
+                    "vimmo"
+                ],
+                "extensions": [
+                    ".vmo"
+                ],
+                "configuration": "./language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "vimmo",
+                "scopeName": "source.vmo",
+                "path": "./syntaxes/vimmo.tmLanguage.json"
+            }
+        ]
+    }
+}

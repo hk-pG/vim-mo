@@ -1,0 +1,12 @@
+let double = (x) => x * 2
+echo double(10)
+
+class Counter {
+  let count = 0
+  fn inc() {
+    self.count += 1
+  }
+}
+let c = new Counter()
+c.inc()
+echo c.count

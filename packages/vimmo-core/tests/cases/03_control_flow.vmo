@@ -1,0 +1,17 @@
+let x = 10
+if x > 5 {
+  echo "big"
+} else {
+  echo "small"
+}
+
+let i = 0
+while i < 3 {
+  echo i
+  i += 1
+}
+
+let items = [1, 2, 3]
+for item in items {
+  echo item
+}

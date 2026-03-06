@@ -266,9 +266,14 @@ class Parser:
 
     def parse_pipeline(self) -> Node:
         left = self.parse_assign()
-        while self.match(TokenType.PIPE):
-            right = self.parse_assign()
-            left = Pipeline(left, right)
+        while True:
+            self.skip_newlines()
+            if self.match(TokenType.PIPE):
+                self.skip_newlines() # allow newline after pipe
+                right = self.parse_assign()
+                left = Pipeline(left, right)
+            else:
+                break
         return left
 
     def parse_assign(self) -> Node:
