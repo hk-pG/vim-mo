@@ -8,3 +8,12 @@ services:
     command: sleep infinity
     tty: true
     stdin_open: true
+
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: sh -c "ln -sf /usr/local/bin/nvim /usr/local/bin/vim && python tests/run_tests.py"

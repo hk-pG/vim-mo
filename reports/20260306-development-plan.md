@@ -17,10 +17,11 @@
 | LSP (Definition) | 完了 | `server.py`, `symbols.py` |
 | Docker環境 | 完了 | `Dockerfile`, `docker-compose.yml` |
 | AST 位置情報 | 完了 | `ast_nodes.py` |
+| コア機能テスト | 完了 | 09_*.vmo (5テスト追加) |
 
 ### 1.2 テスト状況
 
-**現在:** 5テスト (.vmo ファイル)
+**現在:** 10テスト (.vmo ファイル)
 
 ```
 tests/cases/
@@ -28,10 +29,15 @@ tests/cases/
 ├── 02_functions.vmo
 ├── 03_control_flow.vmo
 ├── 04_advanced.vmo
+├── 05_async.vmo
+├── 07_pipeline.vmo
+├── 08_builtins.vmo
+├── 09_closure.vmo      # 失敗 (VimScript制約)
+├── 10_class.vmo
 └── test_definition.vmo
 ```
 
-**未カバー:** async/await, import, パイプライン, 組み込みメソッド, クロージャ, クラス(static)
+**未カバー:** import (パス問題)
 
 ---
 
@@ -69,6 +75,15 @@ tests/cases/
 | 1.5 | クロージャテスト追加 | `09_closure.vmo` | ❌ (Vim制約) |
 | 1.6 | クラステスト追加 | `10_class.vmo` | ✅ |
 | 1.7 | 全テスト実行・確認 | - | ✅ |
+
+### Phase 1.5: Docker テスト環境 (本次追加)
+
+| # | タスク | 状態 |
+|---|--------|------|
+| 1.8 | docker-compose.yml に test サービス追加 | ✅ |
+| 1.9 | Docker環境で全テスト実行 | ✅ |
+
+**結果:** 9/10 テストパス (06_import は codegen 修正必要、09_closure は VimScript 制約)
 
 ### Phase 2: Tree-sitter 基盤構築
 

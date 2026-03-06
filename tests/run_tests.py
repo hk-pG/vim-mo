@@ -3,6 +3,7 @@ import os
 import subprocess
 import glob
 
+
 def run_command(command, cwd=None):
     try:
         result = subprocess.run(
@@ -11,12 +12,13 @@ def run_command(command, cwd=None):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            cwd=cwd
+            cwd=cwd,
         )
         return result
     except Exception as e:
         print(f"Error running command {command}: {e}")
         return None
+
 
 def main():
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -26,29 +28,40 @@ def main():
     cases_dir = os.path.join(core_dir, "tests", "cases")
 
     vmo_files = sorted(glob.glob(os.path.join(cases_dir, "*.vmo")))
-    
+
     if not vmo_files:
         print(f"No .vmo files found in {cases_dir}")
         sys.exit(1)
 
     print(f"Found {len(vmo_files)} test cases.")
-    
+
     failed_tests = []
 
     # Update PYTHONPATH so 'import vimmo' works
     env = os.environ.copy()
-    env["PYTHONPATH"] = os.path.join(core_dir, "src") + os.pathsep + env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = (
+        os.path.join(core_dir, "src") + os.pathsep + env.get("PYTHONPATH", "")
+    )
 
     for vmo_file in vmo_files:
         base_name = os.path.basename(vmo_file)
         vim_file = vmo_file.replace(".vmo", ".vim")
-        
+
         print(f"Running test: {base_name} ... ", end="", flush=True)
 
         # 1. Compile
-        compile_cmd = [sys.executable, vimmo_script, "compile", vmo_file, "-o", vim_file]
-        compile_result = subprocess.run(compile_cmd, env=env, capture_output=True, text=True)
-        
+        compile_cmd = [
+            sys.executable,
+            vimmo_script,
+            "compile",
+            vmo_file,
+            "-o",
+            vim_file,
+        ]
+        compile_result = subprocess.run(
+            compile_cmd, env=env, capture_output=True, text=True
+        )
+
         if compile_result.returncode != 0:
             print("FAIL (Compilation Error)")
             print(compile_result.stderr)
@@ -57,13 +70,17 @@ def main():
 
         # 2. Run with Vim
         vim_cmd = [
-            "vim", "-es", "-V1",
-            "-c", f"try | source {vim_file} | catch | echo v:exception | cquit 1 | endtry",
-            "-c", "q"
+            "vim",
+            "-es",
+            "-V1",
+            "-c",
+            f"try | source {vim_file} | catch | echo v:exception | cquit 1 | endtry",
+            "-c",
+            "q",
         ]
-        
-        vim_result = run_command(vim_cmd)
-        
+
+        vim_result = run_command(vim_cmd, cwd=cases_dir)
+
         if vim_result and vim_result.returncode != 0:
             print("FAIL (Vim Runtime Error)")
             print(f"  Exit Code: {vim_result.returncode}")
@@ -78,6 +95,7 @@ def main():
         sys.exit(1)
     else:
         print("✅ All tests passed.")
+
 
 if __name__ == "__main__":
     main()
