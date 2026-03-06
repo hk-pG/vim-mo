@@ -13,10 +13,20 @@
 - LSP definition ハンドラを追加
 - テスト作成・通過確認
 
+### Docker開発環境の構築 ⭐ NEW
+- Dockerfile作成 (Python 3.14 + Neovim + Node.js)
+- docker-compose.yml作成
+- AstroNvim Templateセットアップ
+- vimmo-ls統合 (pip install + LSP設定)
+- テスト確認 (全5件パス)
+
 ## 新規作成/変更したファイル
 
 | ファイル | 変更 |
 |---------|------|
+| `Dockerfile` | 新規作成 |
+| `docker-compose.yml` | 新規作成 |
+| `docker/lua/plugins/vimmo-ls.lua` | 新規作成 |
 | `packages/vimmo-core/src/vimmo/ast_nodes.py` | Node基底クラスに位置情報追加 |
 | `packages/vimmo-core/src/vimmo/parser.py` | 位置情報設定を追加 |
 | `packages/vimmo-ls/src/vimmo_ls/symbols.py` | 新規作成 |
@@ -34,7 +44,31 @@
 - 04_advanced.vmo
 - test_definition.vmo
 
+## Docker環境使用方法
+
+```bash
+# 起動
+docker-compose up -d
+
+# コンテナに入る
+docker-compose exec vimmo bash
+
+# Neovim起動（.vmoファイルでLSP動作確認可能）
+nvim
+
+# テスト実行
+python tests/run_tests.py
+```
+
+## 技術仕様
+
+- **Python:** 3.14 (python:3.14-slim)
+- **Neovim:** 0.10.4
+- **AstroNvim:** Template (最新)
+- **vimmo-ls:** stdio通信、.vmoファイルで自動起動
+
 ## 次のステップ
 
-- ホバー機能の実装 (型情報表示)
-- より詳細なシンボルテーブル (、スコープ対応)
+- vimmo-lsの実際の動作確認（.vmoファイルでLSP機能テスト）
+- 補完機能の実装
+- 診断機能の改善

@@ -1,0 +1,10 @@
+services:
+  vimmo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app
+    command: sleep infinity
+    tty: true
+    stdin_open: true
