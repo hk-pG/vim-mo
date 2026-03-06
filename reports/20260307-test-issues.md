@@ -1,79 +1,46 @@
 # VimMo テスト問題詳細
 
 **作成日:** 2026-03-07  
-**状況:** 9/10 テストパス
+**最終更新:** 2026-03-07  
+**状況:** 11/11 テストパス（全件解決済み）
 
 ---
 
-## 1. 失敗しているテスト
+## 1. 解決済みの問題
 
-### 1.1 09_closure.vmo - Vim Runtime Error
+### 1.1 09_closure.vmo — E704/E121 エラー（解決済み）
 
-**エラーメッセージ:**
+**コミット:** `ac2d50d` `fix(codegen): multi-line lambda を inline 定義 + closure キーワードに変更`
+
+**元のエラーメッセージ:**
 ```
 Vim(let):E704: Funcref variable name must start with a capital: l:inc
 ```
 
-**原因:** VimScriptの言語仕様制約
+**解決内容:**
 
-VimScriptでは、関数参照(funcref)を保持する変数名は必ず大文字で始まる必要があります。これはVimの慣習で、変数と関数を区別するためのものです。
-
-**問題のコード (codegen.py:118-121):**
-```python
-elif isinstance(node, Assign):
-    target = self.gen_expr(node.target)
-    val = self.gen_expr(node.value)
-    self.emit(f"let {target} = {val}")
-```
-
-**生成されているVimScript:**
-```vim
-let l:inc = function("s:__lambda_0")  " エラー: l:inc は小文字開始
-call l:inc()
-```
-
-**期待されるVimScript:**
-```vim
-let l:Inc = function("s:__lambda_0")  " OK: l:Inc は大文字開始
-call l:Inc()
-```
-
-**修正方針:**
-
-アプローチ1: Assign処理でfuncrefを検出
-```python
-elif isinstance(node, Assign):
-    target = self.gen_expr(node.target)
-    val = self.gen_expr(node.value)
-    # funcrefの場合、変数名をキャピタライズ
-    if 'function("' in val and target.startswith('l:'):
-        target = target[:2] + target[2].upper() + target[3:]
-    self.emit(f"let {target} = {val}")
-```
-
-アプローチ2: 変数名の決定を分離
-- `gen_var_decl` と `gen_assign` で変数名生成を共通化
-- 変数用途(funcref/通常値)に応じて命名ルールを適用
+- `_register_funcref_var()` / `_is_funcref_var()` / `_cap_funcref_name()` を追加し、funcref 変数を自動キャピタライズ（`l:inc` → `l:Inc`）
+- multi-line lambda をスクリプトトップへのホイストから、囲む関数内の inline 定義に変更（E121 対策）
+- `function_depth > 0` のとき `closure` キーワードを付与（E932 対策）
+- 設計記録: `reports/ADR-003-closure-inline-emit.md`
 
 ---
 
-## 2. 未作成のテスト
+### 1.2 06_import.vmo — モジュールインポート未実装（解決済み）
 
-### 2.1 06_import.vmo
+**コミット:** `3d43bde` `feat(codegen): import文のインポート名をグローバルスコープで解決`
 
-開発計画には記載されているが、テストファイルが存在しない。
+**解決内容:**
 
-**予定されていた内容:**
-```vmo
-import { helper } from "./utils"
-echo helper()
-```
-
-**問題:** モジュールパスの解決がcodegenで未実装
+- `Codegen._imported_names` セットを追加
+- `gen_import()` でインポート名を `_imported_names` に登録
+- `_resolve_ident()` でインポート名はスコーププレフィックスなし（グローバル）で解決
+- `06_utils.vim` を追加
+- `06_import.vmo` テストケースを追加
 
 ---
 
-## 3. テスト一覧 (現在)
+## 2. テスト一覧 (現在)
 
 | ファイル | 状態 | メモ |
 |---------|------|------|
@@ -82,16 +49,16 @@ echo helper()
 | 03_control_flow.vmo | ✅ PASS | |
 | 04_advanced.vmo | ✅ PASS | |
 | 05_async.vmo | ✅ PASS | |
-| 06_import.vmo | ❌ 未作成 | codegen要修正 |
+| 06_import.vmo | ✅ PASS | `3d43bde` で実装・追加 |
 | 07_pipeline.vmo | ✅ PASS | |
 | 08_builtins.vmo | ✅ PASS | |
-| 09_closure.vmo | ❌ FAIL | E704 エラー |
+| 09_closure.vmo | ✅ PASS | `ac2d50d` で E704/E121 修正 |
 | 10_class.vmo | ✅ PASS | |
 | test_definition.vmo | ✅ PASS | LSPテスト |
 
 ---
 
-## 4. 技術メモ
+## 3. 技術メモ
 
 ### VimScript funcref制約
 
@@ -102,22 +69,28 @@ echo helper()
 
 参考: `:help E704`
 
-### Lambda → VimScript変換
+### Lambda → VimScript変換（現在のパターン）
 
-現在のパターン:
-1. ラムダが変数に代入される → 名前付き関数として生成
-2. `function("s:__lambda_N")` でfuncref作成
-3. 変数名は元の識別子そのまま → 小文字なのでエラー
+1. **Expression body** (`(x) => x * 2`) → Vim ネイティブラムダ `{x -> x * 2}` に変換
+2. **Block body** (`() => { ... }`) → 囲む関数内に `function! s:__lambda_N() closure` として inline 定義
+3. funcref を保持する変数は `_register_funcref_var()` で登録し `_cap_funcref_name()` でキャピタライズ
 
-### 対応が必要な箇所
+---
 
-1. `codegen.py:118-121` - Assign文の変数名処理
-2. 他のfuncref代入箇所も確認が必要
+## 4. 解決履歴
+
+| 日付 | コミット | 内容 |
+|------|---------|------|
+| 2026-03-06 | `ac2d50d` | `09_closure.vmo` の E704/E121 修正（funcref キャピタライズ + inline lambda）|
+| 2026-03-06 | `3d43bde` | `06_import.vmo` の実装（import 文のグローバルスコープ解決）|
 
 ---
 
 ## 5. 次アクション
 
-- [ ] 09_closure.vmo の修正実装
-- [ ] 修正後、全テスト実行してパス確認
-- [ ] 06_import.vmo の実装（必要に応じて）
+- [ ] Tree-sitter grammar.js 作成
+- [ ] シンタックスハイライト実装（Neovim / VS Code）
+- [ ] LSP 補完機能
+- [ ] LSP Hover 機能
+- [ ] 型システム基盤
+- [ ] コードフォーマッター
