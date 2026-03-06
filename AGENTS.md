@@ -195,7 +195,8 @@ scope は変更対象モジュール名（例: `codegen`, `parser`, `lexer`, `ls
 
 ### ADR (Architecture Decision Records)
 
-- 重要な設計決定を行った場合は `reports/ADR-XXX-{feature-name}.md` にADRを記録する
+- 重要な設計決定を行った場合は `reports/ADR-NNN-{feature-name}.md` にADRを記録する（3桁ゼロ埋め）
+- 番号は `reports/` 内の既存 ADR ファイルを確認して次の番号を使うこと
 - ADRには以下を含める:
   - ステータス (草案/承認済み/Deprecated)
   - 決定事項
@@ -204,8 +205,9 @@ scope は変更対象モジュール名（例: `codegen`, `parser`, `lexer`, `ls
 
 ### 作業完了時の記録
 
-- 作業終了時に `reports/` にmarkdown形式で作業内容を記録する
-- ファイル名: `YYYYMMDD-{model-name}-summary.md`
+- 作業終了時に `reports/YYYYMMDD-{topic}.md` に作業内容を記録する
+- `{topic}` は作業内容を表す kebab-case（例: `closure-fix`, `lsp-hover`）
+- モデル名はファイル名ではなくファイルの先頭に `**モデル:** claude-sonnet-4.6` として記載する
 - 記録内容:
   - 完了したタスク
   - 新規作成/変更したファイル
