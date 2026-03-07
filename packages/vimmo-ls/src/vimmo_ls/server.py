@@ -1,4 +1,20 @@
-from pygls.server import LanguageServer
+# vimmo-core 内 parser.py / codegen.py のベアインポートを解決するための
+# sys.modules エイリアス登録。これを他の vimmo.* インポートより先に実行する必要がある。
+import sys as _sys
+import importlib as _importlib
+
+def _register_vimmo_bare_imports():
+    """vimmo.* を先にロードし、bare name でも参照できるよう sys.modules に登録する。"""
+    for _mod in ("lexer", "ast_nodes", "parser", "codegen"):
+        _full = f"vimmo.{_mod}"
+        if _full not in _sys.modules:
+            _importlib.import_module(_full)
+        if _mod not in _sys.modules:
+            _sys.modules[_mod] = _sys.modules[_full]
+
+_register_vimmo_bare_imports()
+
+from pygls.lsp.server import LanguageServer
 from lsprotocol.types import (
     TEXT_DOCUMENT_DID_OPEN,
     TEXT_DOCUMENT_DID_CHANGE,
@@ -304,6 +320,11 @@ def _get_ident_at_position(source: str, line: int, col: int) -> str:
         return None
 
     target_line = lines[line]
+
+    if col >= len(target_line) or not (
+        target_line[col].isalnum() or target_line[col] == "_"
+    ):
+        return None
 
     start = col
     end = col
