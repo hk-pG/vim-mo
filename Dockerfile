@@ -25,5 +25,11 @@ COPY . /app
 
 RUN pip install -e /app/packages/vimmo-core -e /app/packages/vimmo-ls
 
+# Neovim プラグインをビルド時にインストール (lazy.nvim headless sync)
+RUN nvim --headless "+Lazy! sync" +qa || true
+
+# vimmo Tree-sitter パーサーをビルド時にコンパイル
+RUN nvim --headless -c "TSInstall! vimmo" -c "qa" || true
+
 ENV PYTHONPATH=/app/packages/vimmo-core/src
 ENV XDG_CONFIG_HOME=/root/.config

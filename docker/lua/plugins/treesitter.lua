@@ -11,6 +11,7 @@ return {
             },
             filetype = "vmo",
         }
+        vim.opt.runtimepath:append("/app/packages/tree-sitter-vimmo")
         vim.filetype.add({ extension = { vmo = "vmo" } })
     end,
 }
