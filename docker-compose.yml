@@ -5,6 +5,8 @@ services:
       dockerfile: Dockerfile
     volumes:
       - .:/app
+      # ホストの~/.config/nvimで上書きしたい場合はコメントを外す
+      # - ~/.config/nvim:/root/.config/nvim
     command: sleep infinity
     tty: true
     stdin_open: true

@@ -15,7 +15,7 @@ RUN curl -LO https://github.com/neovim/neovim/releases/download/v0.11.6/nvim-lin
     && mv nvim-linux-arm64/share/nvim /usr/local/share/ \
     && rm -rf nvim-linux-arm64*
 
-RUN git clone --depth 1 https://github.com/AstroNvim/template.git /root/.config/nvim
+COPY docker/nvim /root/.config/nvim
 
 COPY docker/lua /root/.config/nvim/lua
 

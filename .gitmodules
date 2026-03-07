@@ -1,0 +1,3 @@
+[submodule "docker/nvim"]
+	path = docker/nvim
+	url = https://github.com/hk-pG/nvim.git
