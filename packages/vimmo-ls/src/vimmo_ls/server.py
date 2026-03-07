@@ -4,6 +4,13 @@ from lsprotocol.types import (
     TEXT_DOCUMENT_DID_CHANGE,
     TEXT_DOCUMENT_DID_SAVE,
     TEXT_DOCUMENT_DEFINITION,
+    TEXT_DOCUMENT_COMPLETION,
+    CompletionItem,
+    CompletionItemKind,
+    CompletionList,
+    CompletionOptions,
+    CompletionParams,
+    InsertTextFormat,
     Diagnostic,
     Position,
     Range,
@@ -20,6 +27,74 @@ class VimMoLanguageServer(LanguageServer):
 
 
 server = VimMoLanguageServer("vimmo-ls", "v0.1.0")
+
+
+_KEYWORDS = [
+    "let",
+    "const",
+    "fn",
+    "async",
+    "await",
+    "return",
+    "if",
+    "else",
+    "for",
+    "in",
+    "while",
+    "break",
+    "continue",
+    "import",
+    "from",
+    "class",
+    "self",
+    "echo",
+    "new",
+    "true",
+    "false",
+    "null",
+]
+
+_TYPE_KEYWORDS = ["number", "string", "bool", "list", "dict", "any", "void"]
+
+_BUILTIN_METHODS = {
+    "list": [
+        ("map", "map(callback)", "map(callback: fn) -> list"),
+        ("filter", "filter(callback)", "filter(callback: fn) -> list"),
+        ("push", "push(value)", "push(value: any) -> void"),
+        ("pop", "pop()", "pop() -> any"),
+        ("len", "len()", "len() -> number"),
+        ("join", "join(separator)", "join(separator: string) -> string"),
+    ],
+    "string": [
+        ("split", "split(separator)", "split(separator: string) -> list"),
+        ("join", "join(separator)", "join(separator: string) -> string"),
+        ("len", "len()", "len() -> number"),
+    ],
+    "dict": [
+        ("keys", "keys()", "keys() -> list"),
+        ("values", "values()", "values() -> list"),
+        ("has", "has(key)", "has(key: string) -> bool"),
+    ],
+}
+
+_BUILTIN_FUNCTIONS = [
+    (
+        "autocmd",
+        "autocmd(event, pattern, callback)",
+        "autocmd(event: string, pattern: string, callback: fn) -> void",
+    ),
+    (
+        "command",
+        "command(name, callback)",
+        "command(name: string, callback: fn) -> void",
+    ),
+    (
+        "map",
+        "map(mode, lhs, callback)",
+        "map(mode: string, lhs: string, callback: fn) -> void",
+    ),
+    ("job", "job(cmd)", "job(cmd: string) -> any"),
+]
 
 
 @server.feature(TEXT_DOCUMENT_DID_OPEN)
@@ -67,6 +142,159 @@ async def definition(ls: VimMoLanguageServer, params):
             ),
         )
     return None
+
+
+@server.feature(TEXT_DOCUMENT_COMPLETION, CompletionOptions(trigger_characters=["."]))
+async def completion(ls: VimMoLanguageServer, params: CompletionParams):
+    doc = ls.workspace.get_document(params.text_document.uri)
+    line = params.position.line
+    col = params.position.character
+
+    program = None
+    try:
+        tokens = Lexer(doc.source).tokenize()
+        program = Parser(tokens).parse()
+    except Exception:
+        pass
+
+    table = None
+    if program is not None:
+        table = build_symbol_table(params.text_document.uri, program)
+
+    lines = doc.source.split("\n")
+    current_line = lines[line] if line < len(lines) else ""
+    before_cursor = current_line[:col]
+
+    import re
+
+    dot_match = re.search(r"(\w+)\.$", before_cursor)
+    if dot_match:
+        obj_name = dot_match.group(1)
+        return CompletionList(
+            is_incomplete=False, items=_get_member_items(obj_name, table)
+        )
+
+    items = []
+
+    for kw in _KEYWORDS + _TYPE_KEYWORDS:
+        items.append(
+            CompletionItem(
+                label=kw,
+                kind=CompletionItemKind.Keyword,
+            )
+        )
+
+    for name, insert_text, detail in _BUILTIN_FUNCTIONS:
+        items.append(
+            CompletionItem(
+                label=name,
+                kind=CompletionItemKind.Function,
+                insert_text=insert_text,
+                insert_text_format=InsertTextFormat.PlainText,
+                detail=detail,
+            )
+        )
+
+    if table is not None:
+        visible = table.get_symbols_visible_at(line, col)
+        for sym in visible:
+            if sym.kind == "variable":
+                items.append(
+                    CompletionItem(
+                        label=sym.name,
+                        kind=CompletionItemKind.Variable,
+                        detail=f": {sym.type_ann}" if sym.type_ann else None,
+                    )
+                )
+            elif sym.kind == "function":
+                param_str = ", ".join(
+                    p[0] if isinstance(p, (list, tuple)) else str(p)
+                    for p in (sym.params or [])
+                )
+                items.append(
+                    CompletionItem(
+                        label=sym.name,
+                        kind=CompletionItemKind.Function,
+                        insert_text=f"{sym.name}({param_str})",
+                        insert_text_format=InsertTextFormat.PlainText,
+                        detail=f"fn {sym.name}({param_str})",
+                    )
+                )
+            elif sym.kind == "class":
+                items.append(
+                    CompletionItem(
+                        label=sym.name,
+                        kind=CompletionItemKind.Class,
+                    )
+                )
+            elif sym.kind == "parameter":
+                items.append(
+                    CompletionItem(
+                        label=sym.name,
+                        kind=CompletionItemKind.Variable,
+                        detail=f": {sym.type_ann}" if sym.type_ann else ": any",
+                    )
+                )
+
+    return CompletionList(is_incomplete=False, items=items)
+
+
+def _get_member_items(obj_name: str, table) -> list:
+    """Return dot-completion candidates."""
+    items = []
+
+    type_ann = None
+    class_name = None
+    if table is not None:
+        sym = table.get_symbol_info(obj_name)
+        if sym is not None:
+            type_ann = sym.type_ann
+            if type_ann and type_ann not in (
+                "number",
+                "string",
+                "bool",
+                "list",
+                "dict",
+                "any",
+                "void",
+            ):
+                class_name = type_ann
+
+    if class_name and table is not None:
+        class_info = table.get_class_info(class_name)
+        if class_info:
+            for field_name in class_info.class_fields or []:
+                items.append(
+                    CompletionItem(label=field_name, kind=CompletionItemKind.Field)
+                )
+            for method_name in class_info.class_methods or []:
+                items.append(
+                    CompletionItem(label=method_name, kind=CompletionItemKind.Method)
+                )
+            return items
+
+    methods_list = []
+    if type_ann in _BUILTIN_METHODS:
+        methods_list = _BUILTIN_METHODS[type_ann]
+    else:
+        for methods in _BUILTIN_METHODS.values():
+            methods_list.extend(methods)
+
+    seen = set()
+    for name, insert_text, detail in methods_list:
+        if name not in seen:
+            seen.add(name)
+            items.append(
+                CompletionItem(
+                    label=name,
+                    kind=CompletionItemKind.Method,
+                    insert_text=insert_text,
+                    insert_text_format=InsertTextFormat.PlainText,
+                    detail=detail,
+                )
+            )
+
+    return items
 
 
 def _get_ident_at_position(source: str, line: int, col: int) -> str:

@@ -1,5 +1,5 @@
-from typing import Dict, List, Optional
-from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -9,15 +9,53 @@ class Location:
     col: int
 
 
+@dataclass
+class SymbolInfo:
+    name: str
+    kind: str  # 'variable', 'function', 'class', 'parameter'
+    type_ann: Optional[str] = None
+    params: Optional[List[Tuple[str, Optional[str]]]] = None
+    class_fields: Optional[List[str]] = None
+    class_methods: Optional[List[str]] = None
+    line: int = 0
+    col: int = 0
+
+
 class SymbolTable:
     def __init__(self, uri: str):
         self.uri = uri
         self.definitions: Dict[str, List[Location]] = {}
+        self.symbol_infos: List[SymbolInfo] = []
 
     def add_definition(self, name: str, line: int, col: int):
         if name not in self.definitions:
             self.definitions[name] = []
         self.definitions[name].append(Location(self.uri, line, col))
+
+    def add_symbol_info(self, info: SymbolInfo) -> None:
+        self.symbol_infos.append(info)
+
+    def get_symbols_visible_at(self, line: int, col: int) -> List[SymbolInfo]:
+        """Return symbols defined before the given position."""
+        result = []
+        for info in self.symbol_infos:
+            if info.line < line or (info.line == line and info.col < col):
+                result.append(info)
+        return result
+
+    def get_symbol_info(self, name: str) -> Optional[SymbolInfo]:
+        """Search symbol info by name (returns first match)."""
+        for info in self.symbol_infos:
+            if info.name == name:
+                return info
+        return None
+
+    def get_class_info(self, class_name: str) -> Optional[SymbolInfo]:
+        """Return SymbolInfo for a class definition."""
+        for info in self.symbol_infos:
+            if info.kind == "class" and info.name == class_name:
+                return info
+        return None
 
     def find_definition(self, name: str, line: int, col: int) -> Optional[Location]:
         """Find definition of identifier at given position.
@@ -88,12 +126,56 @@ def _walk(node, table: SymbolTable):
 
     if isinstance(node, VarDecl):
         table.add_definition(node.name, node.line or 0, node.col or 0)
+        table.add_symbol_info(
+            SymbolInfo(
+                name=node.name,
+                kind="variable",
+                type_ann=node.type_ann,
+                line=node.line or 0,
+                col=node.col or 0,
+            )
+        )
 
     elif isinstance(node, FnDecl):
         table.add_definition(node.name, node.line or 0, node.col or 0)
+        table.add_symbol_info(
+            SymbolInfo(
+                name=node.name,
+                kind="function",
+                params=list(node.params),
+                line=node.line or 0,
+                col=node.col or 0,
+            )
+        )
+        for param in node.params:
+            param_name = param[0] if isinstance(param, (list, tuple)) else str(param)
+            param_type = (
+                param[1]
+                if isinstance(param, (list, tuple)) and len(param) > 1
+                else None
+            )
+            table.add_symbol_info(
+                SymbolInfo(
+                    name=param_name,
+                    kind="parameter",
+                    type_ann=param_type,
+                    line=node.line or 0,
+                    col=node.col or 0,
+                )
+            )
 
     elif isinstance(node, ClassDecl):
         table.add_definition(node.name, node.line or 0, node.col or 0)
+        table.add_symbol_info(
+            SymbolInfo(
+                name=node.name,
+                kind="class",
+                class_fields=[f.name for f in node.fields],
+                class_methods=[m.name for m in node.methods],
+                line=node.line or 0,
+                col=node.col or 0,
+            )
+        )
 
     elif isinstance(node, Program):
         for stmt in node.body:
@@ -113,6 +195,14 @@ def _walk(node, table: SymbolTable):
             _walk(node.else_, table)
 
     elif isinstance(node, For):
+        table.add_symbol_info(
+            SymbolInfo(
+                name=node.var,
+                kind="variable",
+                line=0,
+                col=0,
+            )
+        )
         _walk(node.iterable, table)
         _walk(node.body, table)
 
