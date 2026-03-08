@@ -20,7 +20,7 @@ cd "$(git rev-parse --show-toplevel)"
 
 # ─── lint (flake8 直接実行・高速) ─────────────────────────────────────────────
 echo "── lint ──────────────────────────────────────────────────────────────"
-if ! flake8 packages/vimmo-core/src/ packages/vimmo-ls/src/ --max-line-length=100; then
+if ! python3 -m flake8 packages/vimmo-core/src/ packages/vimmo-ls/src/ --max-line-length=100; then
     echo ""
     echo "❌ lint に失敗しました。push を中断します。"
     echo "   ローカル確認: make lint  /  act で再現: make ci-lint"
@@ -39,7 +39,7 @@ fi
 
 # ─── LSP ユニットテスト (pytest 直接実行) ──────────────────────────────────────
 echo "── LSP unit tests (pytest) ───────────────────────────────────────────"
-if ! pytest packages/vimmo-ls/tests/ -q 2>&1; then
+if ! python3 -m pytest packages/vimmo-ls/tests/ -q 2>&1; then
     echo ""
     echo "❌ LSP テストに失敗しました。push を中断します。"
     echo "   ローカル確認: make lsp-test  /  act で再現: make ci-lsp"

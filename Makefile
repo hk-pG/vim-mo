@@ -18,7 +18,7 @@ ci-lsp:
 # ─── ダイレクト実行 (コンテナ不使用 / 高速確認用) ──────────────────────────
 ## flake8 lint
 lint:
-	flake8 packages/vimmo-core/src/ packages/vimmo-ls/src/ --max-line-length=100
+	python3 -m flake8 packages/vimmo-core/src/ packages/vimmo-ls/src/ --max-line-length=100
 
 ## E2E テスト (Docker Compose)
 test:
@@ -27,7 +27,7 @@ test:
 ## LSP ユニットテスト
 lsp-test:
 	pip install -q -e packages/vimmo-core -e "packages/vimmo-ls[test]"
-	pytest packages/vimmo-ls/tests/
+	python3 -m pytest packages/vimmo-ls/tests/
 
 # ─── Git hooks セットアップ ───────────────────────────────────────────────────
 install-hooks:
