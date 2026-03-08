@@ -6,10 +6,10 @@ from typing import List, Optional, Tuple
 
 try:
     from vimmo.lexer import Token, TokenType
-    from vimmo.ast_nodes import *
+    from vimmo.ast_nodes import *  # noqa: F403
 except ImportError:
     from lexer import Token, TokenType  # type: ignore[no-redef]
-    from ast_nodes import *  # type: ignore[no-redef]
+    from ast_nodes import *  # type: ignore[no-redef]  # noqa: F403
 
 
 class ParseError(Exception):

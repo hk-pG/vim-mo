@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# pre-push hook — act で CI をローカル実行してから push する
+#
+# スキップしたい場合:
+#   git push --no-verify
+#   SKIP_CI=1 git push
+
+set -euo pipefail
+
+if [[ "${SKIP_CI:-}" == "1" ]]; then
+    echo "⏭  SKIP_CI=1: CI チェックをスキップします"
+    exit 0
+fi
+
+if ! command -v act &>/dev/null; then
+    echo "⚠️  act が見つかりません。CI チェックをスキップします。"
+    echo "   インストール: brew install act"
+    exit 0
+fi
+
+echo "🔍 push 前に CI をローカル実行します (act) ..."
+echo "   スキップ: SKIP_CI=1 git push  または  git push --no-verify"
+echo ""
+
+cd "$(git rev-parse --show-toplevel)"
+
+# lint と lsp-test は高速なので act 経由で実行
+# E2E (test ジョブ) は Docker in Docker になり重いので Makefile 経由
+echo "── lint ──────────────────────────────────────────────────────────────"
+if ! act push -j lint --quiet 2>&1; then
+    echo ""
+    echo "❌ lint に失敗しました。push を中断します。"
+    echo "   ローカル確認: make lint"
+    exit 1
+fi
+
+echo "── LSP unit tests ────────────────────────────────────────────────────"
+if ! act push -j lsp-test --quiet 2>&1; then
+    echo ""
+    echo "❌ LSP テストに失敗しました。push を中断します。"
+    echo "   ローカル確認: make lsp-test"
+    exit 1
+fi
+
+echo "── E2E tests (Docker Compose) ────────────────────────────────────────"
+if ! docker compose run --rm test 2>&1; then
+    echo ""
+    echo "❌ E2E テストに失敗しました。push を中断します。"
+    echo "   ローカル確認: make test"
+    exit 1
+fi
+
+echo ""
+echo "✅ すべての CI チェックが通りました。push を続行します。"
+exit 0

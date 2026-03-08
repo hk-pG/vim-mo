@@ -3,9 +3,9 @@ VimMo Code Generator — emits VimScript from AST
 """
 
 try:
-    from vimmo.ast_nodes import *
+    from vimmo.ast_nodes import *  # noqa: F403
 except ImportError:
-    from ast_nodes import *  # type: ignore[no-redef]
+    from ast_nodes import *  # type: ignore[no-redef]  # noqa: F403
 from typing import List, Optional
 
 
