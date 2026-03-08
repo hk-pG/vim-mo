@@ -18,11 +18,12 @@ _register_vimmo_bare_imports()
 
 import logging as _logging
 
-# LSP サーバーのデバッグログを /tmp/vimmo-ls.log に出力する
-# 確認: tail -f /tmp/vimmo-ls.log
+# LSP サーバーのデバッグログを /app/vimmo-ls.log に出力する
+# Docker 環境では /app が .:/app でホストにマウントされているため、
+# ホスト側 /Users/hk-p/repo/vim-mo/vimmo-ls.log から直接参照できる
 _logging.basicConfig(
     level=_logging.DEBUG,
-    filename="/tmp/vimmo-ls.log",
+    filename="/app/vimmo-ls.log",
     filemode="a",
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
@@ -38,6 +39,7 @@ from lsprotocol.types import (
     TEXT_DOCUMENT_DID_SAVE,
     TEXT_DOCUMENT_DEFINITION,
     TEXT_DOCUMENT_COMPLETION,
+    WINDOW_SHOW_MESSAGE,
     CompletionItem,
     CompletionItemKind,
     CompletionList,
@@ -46,6 +48,8 @@ from lsprotocol.types import (
     InsertTextFormat,
     Diagnostic,
     PublishDiagnosticsParams,
+    ShowMessageParams,
+    MessageType,
     Position,
     Range,
     Location,
@@ -67,8 +71,18 @@ def _show_message(ls, message):
     """pygls バージョン互換 show_message"""
     if hasattr(ls, "show_message"):
         ls.show_message(message)
-    else:
-        _logger.info(message)
+        return
+    # pygls 2.x: protocol.notify 経由
+    if hasattr(ls, "protocol") and hasattr(ls.protocol, "notify"):
+        try:
+            ls.protocol.notify(
+                WINDOW_SHOW_MESSAGE,
+                ShowMessageParams(type=MessageType.Info, message=message),
+            )
+            return
+        except Exception as e:
+            _logger.debug("_show_message via protocol.notify failed: %s", e)
+    _logger.info(message)
 
 
 def _publish_diagnostics(ls, uri, diagnostics):
@@ -76,16 +90,25 @@ def _publish_diagnostics(ls, uri, diagnostics):
     if hasattr(ls, "publish_diagnostics"):
         ls.publish_diagnostics(uri, diagnostics)
         return
-    # fallback: send_notification 経由
     params = PublishDiagnosticsParams(uri=uri, diagnostics=diagnostics)
+    # pygls 2.x: protocol.notify 経由
+    if hasattr(ls, "protocol") and hasattr(ls.protocol, "notify"):
+        try:
+            ls.protocol.notify("textDocument/publishDiagnostics", params)
+            return
+        except Exception as e:
+            _logger.debug("_publish_diagnostics via protocol.notify failed: %s", e)
+    # pygls 1.x: send_notification 直接
     for method_name in ("send_notification", "_send_notification"):
         fn = getattr(ls, method_name, None)
         if fn is not None:
             try:
                 fn("textDocument/publishDiagnostics", params)
                 return
-            except Exception:
-                pass
+            except Exception as e:
+                _logger.debug(
+                    "_publish_diagnostics via ls.%s failed: %s", method_name, e
+                )
     _logger.warning("publish_diagnostics: no compatible API found in pygls")
 
 

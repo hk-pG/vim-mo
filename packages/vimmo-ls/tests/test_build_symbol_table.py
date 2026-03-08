@@ -66,7 +66,7 @@ def test_var_decl_produces_variable_symbol():
     sym = table.get_symbol_info("x")
     assert sym is not None
     assert sym.kind == "variable"
-    assert sym.line == 1
+    assert sym.line == 0  # Lexer 1-based line=1 → LSP 0-based
 
 
 def test_var_decl_preserves_type_annotation():
@@ -161,7 +161,7 @@ def test_var_decl_adds_definition_for_lookup():
     table = build_symbol_table("f", make_program(make_var("x", line=2)))
     loc = table.find_definition("x", line=5, col=0)
     assert loc is not None
-    assert loc.line == 2
+    assert loc.line == 1  # Lexer 1-based line=2 → LSP 0-based
 
 
 # --- If 両ブランチ ---
