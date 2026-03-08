@@ -3,8 +3,81 @@ VimMo Parser — produces AST from token stream
 """
 
 from typing import List, Optional, Tuple
-from lexer import Token, TokenType
-from ast_nodes import *
+
+try:
+    from vimmo.lexer import Token, TokenType
+    from vimmo.ast_nodes import (
+        Node,
+        NumberLit,
+        StringLit,
+        BoolLit,
+        NullLit,
+        Ident,
+        ListLit,
+        DictLit,
+        BinOp,
+        UnaryOp,
+        Assign,
+        AugAssign,
+        Index,
+        Attr,
+        Call,
+        Lambda,
+        Await,
+        Pipeline,
+        New,
+        VarDecl,
+        FnDecl,
+        Return,
+        If,
+        For,
+        While,
+        Break,
+        Continue,
+        Echo,
+        ExprStmt,
+        Block,
+        Import,
+        ClassDecl,
+        Program,
+    )
+except ImportError:
+    from lexer import Token, TokenType  # type: ignore[no-redef]
+    from ast_nodes import (  # type: ignore[no-redef]
+        Node,
+        NumberLit,
+        StringLit,
+        BoolLit,
+        NullLit,
+        Ident,
+        ListLit,
+        DictLit,
+        BinOp,
+        UnaryOp,
+        Assign,
+        AugAssign,
+        Index,
+        Attr,
+        Call,
+        Lambda,
+        Await,
+        Pipeline,
+        New,
+        VarDecl,
+        FnDecl,
+        Return,
+        If,
+        For,
+        While,
+        Break,
+        Continue,
+        Echo,
+        ExprStmt,
+        Block,
+        Import,
+        ClassDecl,
+        Program,
+    )
 
 
 class ParseError(Exception):
@@ -450,7 +523,7 @@ class Parser:
             self.expect(TokenType.RPAREN)
             return expr
 
-        raise ParseError(f"Unexpected token in expression", tok)
+        raise ParseError("Unexpected token in expression", tok)
 
     def _is_lambda(self) -> bool:
         """Lookahead to decide if '(' starts a lambda param list."""

@@ -1,0 +1,4 @@
+# act 設定ファイル
+# arm64 (M1/M2/M3) Mac で ubuntu-latest を act-latest イメージにマップ
+--platform ubuntu-latest=catthehacker/ubuntu:act-latest
+--container-architecture linux/amd64

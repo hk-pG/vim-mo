@@ -2,7 +2,6 @@
 VimMo Lexer - Tokenizer for VimMo language
 """
 
-import re
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import List, Optional
@@ -242,7 +241,7 @@ class Lexer:
 
             # Comment
             if ch == "/" and self.peek(1) == "/":
-                tok = self.read_comment()
+                self.read_comment()
                 # skip comments (don't emit)
                 continue
 

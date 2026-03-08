@@ -16,7 +16,7 @@ def _register_vimmo_bare_imports():
 
 _register_vimmo_bare_imports()
 
-import logging as _logging
+import logging as _logging  # noqa: E402
 
 # LSP サーバーのデバッグログを /app/vimmo-ls.log に出力する
 # Docker 環境では /app が .:/app でホストにマウントされているため、
@@ -33,7 +33,7 @@ try:
 except ImportError:
     from pygls.lsp.server import LanguageServer
 
-from lsprotocol.types import (
+from lsprotocol.types import (  # noqa: E402
     TEXT_DOCUMENT_DID_OPEN,
     TEXT_DOCUMENT_DID_CHANGE,
     TEXT_DOCUMENT_DID_SAVE,
@@ -54,9 +54,9 @@ from lsprotocol.types import (
     Range,
     Location,
 )
-from vimmo.lexer import Lexer, LexerError
-from vimmo.parser import Parser, ParseError
-from vimmo_ls.symbols import build_symbol_table
+from vimmo.lexer import Lexer, LexerError  # noqa: E402
+from vimmo.parser import Parser, ParseError  # noqa: E402
+from vimmo_ls.symbols import build_symbol_table  # noqa: E402
 
 
 class VimMoLanguageServer(LanguageServer):

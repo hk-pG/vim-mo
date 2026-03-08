@@ -1,5 +1,5 @@
 from typing import Dict, List, Optional, Tuple
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
@@ -112,7 +112,6 @@ def _walk(node, table: SymbolTable):
         AugAssign,
         BinOp,
         UnaryOp,
-        Ident,
         Call,
         Lambda,
         Pipeline,
