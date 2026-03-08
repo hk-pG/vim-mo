@@ -3,7 +3,12 @@
 	"python.testing.pytestArgs": ["packages"],
 	"chat.tools.terminal.autoApprove": {
 		"pytest": true,
-		"pip": true
+		"pip": true,
+		"yamllint": true,
+		"/^python /tmp/fix_flake8\\.py$/": {
+			"approve": true,
+			"matchCommandLine": true
+		}
 	},
 	"python.testing.unittestEnabled": false,
 	"python.testing.pytestEnabled": true
