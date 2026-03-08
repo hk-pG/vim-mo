@@ -15,9 +15,14 @@ import os
 import argparse
 from pathlib import Path
 
-from lexer import Lexer, LexerError
-from parser import Parser, ParseError
-from codegen import Codegen, CodegenError
+try:
+    from vimmo.lexer import Lexer, LexerError
+    from vimmo.parser import Parser, ParseError
+    from vimmo.codegen import Codegen, CodegenError
+except ImportError:
+    from lexer import Lexer, LexerError  # type: ignore[no-redef]
+    from parser import Parser, ParseError  # type: ignore[no-redef]
+    from codegen import Codegen, CodegenError  # type: ignore[no-redef]
 
 
 def read_file(path: str) -> str:

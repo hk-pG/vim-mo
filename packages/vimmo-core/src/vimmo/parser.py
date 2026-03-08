@@ -3,8 +3,13 @@ VimMo Parser — produces AST from token stream
 """
 
 from typing import List, Optional, Tuple
-from lexer import Token, TokenType
-from ast_nodes import *
+
+try:
+    from vimmo.lexer import Token, TokenType
+    from vimmo.ast_nodes import *
+except ImportError:
+    from lexer import Token, TokenType  # type: ignore[no-redef]
+    from ast_nodes import *  # type: ignore[no-redef]
 
 
 class ParseError(Exception):

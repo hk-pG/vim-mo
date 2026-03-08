@@ -1,5 +1,4 @@
-def main():
-    print("Hello from vim-mo!")
+from vimmo.vimmo import main
 
 
 if __name__ == "__main__":

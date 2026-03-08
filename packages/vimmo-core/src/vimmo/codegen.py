@@ -2,7 +2,10 @@
 VimMo Code Generator — emits VimScript from AST
 """
 
-from ast_nodes import *
+try:
+    from vimmo.ast_nodes import *
+except ImportError:
+    from ast_nodes import *  # type: ignore[no-redef]
 from typing import List, Optional
 
 
@@ -22,11 +25,17 @@ class Codegen:
         # class names known
         self._classes: set = set()
         # Scope management
-        self.scope_stack: List[dict] = []  # {'kind': 'fn'|'lambda', 'params': set, 'funcref_vars': set}
+        self.scope_stack: List[dict] = (
+            []
+        )  # {'kind': 'fn'|'lambda', 'params': set, 'funcref_vars': set}
         self.function_depth = 0
         self.script_vars: set = set()  # Variables defined at script scope (s:)
-        self._script_funcref_vars: set = set()  # Funcref vars at script scope (need capitalization)
-        self._imported_names: set = set()  # Names imported from other modules (global scope, no prefix)
+        self._script_funcref_vars: set = (
+            set()
+        )  # Funcref vars at script scope (need capitalization)
+        self._imported_names: set = (
+            set()
+        )  # Names imported from other modules (global scope, no prefix)
 
     def enter_scope(self, kind: str, params: List[str]):
         self.scope_stack.append({"kind": kind, "params": set(params)})
@@ -138,7 +147,11 @@ class Codegen:
             for s in node.stmts:
                 self.gen_stmt(s)
         elif isinstance(node, Assign):
-            if isinstance(node.value, Lambda) and isinstance(node.value.body, Block) and isinstance(node.target, Ident):
+            if (
+                isinstance(node.value, Lambda)
+                and isinstance(node.value.body, Block)
+                and isinstance(node.target, Ident)
+            ):
                 self._register_funcref_var(node.target.name)
             val = self.gen_expr(node.value)
             target = self.gen_expr(node.target)
