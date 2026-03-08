@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# pre-push hook — act で CI をローカル実行してから push する
+# pre-push hook — push 前に CI と同等のチェックをローカルで実行する
 #
 # スキップしたい場合:
 #   git push --no-verify
@@ -12,44 +12,41 @@ if [[ "${SKIP_CI:-}" == "1" ]]; then
     exit 0
 fi
 
-if ! command -v act &>/dev/null; then
-    echo "⚠️  act が見つかりません。CI チェックをスキップします。"
-    echo "   インストール: brew install act"
-    exit 0
-fi
-
-echo "🔍 push 前に CI をローカル実行します (act) ..."
+echo "🔍 push 前に CI チェックを実行します ..."
 echo "   スキップ: SKIP_CI=1 git push  または  git push --no-verify"
 echo ""
 
 cd "$(git rev-parse --show-toplevel)"
 
-# lint と lsp-test は高速なので act 経由で実行
-# E2E (test ジョブ) は Docker in Docker になり重いので Makefile 経由
+# ─── lint (flake8 直接実行・高速) ─────────────────────────────────────────────
 echo "── lint ──────────────────────────────────────────────────────────────"
-if ! act push -j lint --quiet 2>&1; then
+if ! flake8 packages/vimmo-core/src/ packages/vimmo-ls/src/ --max-line-length=100; then
     echo ""
     echo "❌ lint に失敗しました。push を中断します。"
-    echo "   ローカル確認: make lint"
+    echo "   ローカル確認: make lint  /  act で再現: make ci-lint"
     exit 1
 fi
+echo "   ✓ lint OK"
 
-echo "── LSP unit tests ────────────────────────────────────────────────────"
-if ! act push -j lsp-test --quiet 2>&1; then
-    echo ""
-    echo "❌ LSP テストに失敗しました。push を中断します。"
-    echo "   ローカル確認: make lsp-test"
-    exit 1
-fi
-
+# ─── E2E テスト (Docker Compose) ──────────────────────────────────────────────
 echo "── E2E tests (Docker Compose) ────────────────────────────────────────"
 if ! docker compose run --rm test 2>&1; then
     echo ""
     echo "❌ E2E テストに失敗しました。push を中断します。"
-    echo "   ローカル確認: make test"
+    echo "   ローカル確認: make test  /  act で再現: make ci-test"
+    exit 1
+fi
+
+# ─── LSP ユニットテスト (pytest 直接実行) ──────────────────────────────────────
+echo "── LSP unit tests (pytest) ───────────────────────────────────────────"
+if ! pytest packages/vimmo-ls/tests/ -q 2>&1; then
+    echo ""
+    echo "❌ LSP テストに失敗しました。push を中断します。"
+    echo "   ローカル確認: make lsp-test  /  act で再現: make ci-lsp"
     exit 1
 fi
 
 echo ""
 echo "✅ すべての CI チェックが通りました。push を続行します。"
 exit 0
+
