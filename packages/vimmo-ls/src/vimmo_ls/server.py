@@ -3,6 +3,7 @@
 import sys as _sys
 import importlib as _importlib
 
+
 def _register_vimmo_bare_imports():
     """vimmo.* を先にロードし、bare name でも参照できるよう sys.modules に登録する。"""
     for _mod in ("lexer", "ast_nodes", "parser", "codegen"):
@@ -12,9 +13,25 @@ def _register_vimmo_bare_imports():
         if _mod not in _sys.modules:
             _sys.modules[_mod] = _sys.modules[_full]
 
+
 _register_vimmo_bare_imports()
 
-from pygls.lsp.server import LanguageServer
+import logging as _logging
+
+# LSP サーバーのデバッグログを /tmp/vimmo-ls.log に出力する
+# 確認: tail -f /tmp/vimmo-ls.log
+_logging.basicConfig(
+    level=_logging.DEBUG,
+    filename="/tmp/vimmo-ls.log",
+    filemode="a",
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+
+try:
+    from pygls.server import LanguageServer
+except ImportError:
+    from pygls.lsp.server import LanguageServer
+
 from lsprotocol.types import (
     TEXT_DOCUMENT_DID_OPEN,
     TEXT_DOCUMENT_DID_CHANGE,
@@ -28,6 +45,7 @@ from lsprotocol.types import (
     CompletionParams,
     InsertTextFormat,
     Diagnostic,
+    PublishDiagnosticsParams,
     Position,
     Range,
     Location,
@@ -40,6 +58,35 @@ from vimmo_ls.symbols import build_symbol_table
 class VimMoLanguageServer(LanguageServer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+
+_logger = _logging.getLogger("vimmo-ls")
+
+
+def _show_message(ls, message):
+    """pygls バージョン互換 show_message"""
+    if hasattr(ls, "show_message"):
+        ls.show_message(message)
+    else:
+        _logger.info(message)
+
+
+def _publish_diagnostics(ls, uri, diagnostics):
+    """pygls バージョン互換 publish_diagnostics"""
+    if hasattr(ls, "publish_diagnostics"):
+        ls.publish_diagnostics(uri, diagnostics)
+        return
+    # fallback: send_notification 経由
+    params = PublishDiagnosticsParams(uri=uri, diagnostics=diagnostics)
+    for method_name in ("send_notification", "_send_notification"):
+        fn = getattr(ls, method_name, None)
+        if fn is not None:
+            try:
+                fn("textDocument/publishDiagnostics", params)
+                return
+            except Exception:
+                pass
+    _logger.warning("publish_diagnostics: no compatible API found in pygls")
 
 
 server = VimMoLanguageServer("vimmo-ls", "v0.1.0")
@@ -115,7 +162,7 @@ _BUILTIN_FUNCTIONS = [
 
 @server.feature(TEXT_DOCUMENT_DID_OPEN)
 async def did_open(ls: VimMoLanguageServer, params):
-    ls.show_message("VimMo Language Server connected")
+    _show_message(ls, "VimMo Language Server connected")
     _validate(ls, params.text_document.uri)
 
 
@@ -131,24 +178,45 @@ async def did_save(ls: VimMoLanguageServer, params):
 
 @server.feature(TEXT_DOCUMENT_DEFINITION)
 async def definition(ls: VimMoLanguageServer, params):
-    doc = ls.workspace.get_document(params.text_document.uri)
-
-    try:
-        tokens = Lexer(doc.source).tokenize()
-        program = Parser(tokens).parse()
-    except (LexerError, ParseError):
+    uri = params.text_document.uri
+    doc = ls.workspace.text_documents.get(uri)
+    if doc is None:
+        _logger.debug("definition: doc is None for uri=%s", uri)
         return None
 
-    table = build_symbol_table(params.text_document.uri, program)
+    source = doc.source if hasattr(doc, "source") else getattr(doc, "text", None)
+    if source is None:
+        _logger.debug("definition: doc has neither .source nor .text")
+        return None
+
+    try:
+        tokens = Lexer(source).tokenize()
+        program = Parser(tokens).parse()
+    except (LexerError, ParseError) as e:
+        _logger.debug("definition: parse/lex error: %s", e)
+        return None
+    except Exception as e:
+        _logger.debug("definition: unexpected error during parse: %s", e)
+        return None
+
+    table = build_symbol_table(uri, program)
 
     line = params.position.line
     col = params.position.character
+    _logger.debug("definition: line=%d col=%d", line, col)
 
-    ident = _get_ident_at_position(doc.source, line, col)
+    ident = _get_ident_at_position(source, line, col)
+    _logger.debug("definition: ident=%r", ident)
     if not ident:
         return None
 
     loc = table.find_definition(ident, line, col)
+    _logger.debug(
+        "definition: ident=%r find_definition result=%r defs=%r",
+        ident,
+        loc,
+        table.definitions.get(ident),
+    )
     if loc:
         return Location(
             uri=loc.uri,
@@ -162,7 +230,9 @@ async def definition(ls: VimMoLanguageServer, params):
 
 @server.feature(TEXT_DOCUMENT_COMPLETION, CompletionOptions(trigger_characters=["."]))
 async def completion(ls: VimMoLanguageServer, params: CompletionParams):
-    doc = ls.workspace.get_document(params.text_document.uri)
+    doc = ls.workspace.text_documents.get(params.text_document.uri)
+    if doc is None:
+        return CompletionList(is_incomplete=False, items=[])
     line = params.position.line
     col = params.position.character
 
@@ -346,7 +416,9 @@ def _get_ident_at_position(source: str, line: int, col: int) -> str:
 
 
 def _validate(ls: VimMoLanguageServer, uri: str):
-    doc = ls.workspace.get_document(uri)
+    doc = ls.workspace.text_documents.get(uri)
+    if doc is None:
+        return
     diagnostics = []
 
     try:
@@ -383,7 +455,7 @@ def _validate(ls: VimMoLanguageServer, uri: str):
                 )
             )
 
-    ls.publish_diagnostics(uri, diagnostics)
+    _publish_diagnostics(ls, uri, diagnostics)
 
 
 def main():

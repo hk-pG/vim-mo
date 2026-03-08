@@ -77,6 +77,16 @@ class SymbolTable:
         return candidates[0]
 
 
+def _to_lsp_line(n):
+    """Lexer の 1-ベース行番号を LSP 0-ベースに変換する。"""
+    return max(0, (n or 1) - 1)
+
+
+def _to_lsp_col(n):
+    """Lexer の 1-ベース列番号を LSP 0-ベースに変換する。"""
+    return max(0, (n or 1) - 1)
+
+
 def build_symbol_table(uri: str, node) -> SymbolTable:
     """Build symbol table from AST."""
     table = SymbolTable(uri)
@@ -86,7 +96,7 @@ def build_symbol_table(uri: str, node) -> SymbolTable:
 
 def _walk(node, table: SymbolTable):
     """Walk AST and collect definitions."""
-    from ast_nodes import (
+    from vimmo.ast_nodes import (
         Program,
         VarDecl,
         FnDecl,
@@ -125,26 +135,26 @@ def _walk(node, table: SymbolTable):
         return
 
     if isinstance(node, VarDecl):
-        table.add_definition(node.name, node.line or 0, node.col or 0)
+        table.add_definition(node.name, _to_lsp_line(node.line), _to_lsp_col(node.col))
         table.add_symbol_info(
             SymbolInfo(
                 name=node.name,
                 kind="variable",
                 type_ann=node.type_ann,
-                line=node.line or 0,
-                col=node.col or 0,
+                line=_to_lsp_line(node.line),
+                col=_to_lsp_col(node.col),
             )
         )
 
     elif isinstance(node, FnDecl):
-        table.add_definition(node.name, node.line or 0, node.col or 0)
+        table.add_definition(node.name, _to_lsp_line(node.line), _to_lsp_col(node.col))
         table.add_symbol_info(
             SymbolInfo(
                 name=node.name,
                 kind="function",
                 params=list(node.params),
-                line=node.line or 0,
-                col=node.col or 0,
+                line=_to_lsp_line(node.line),
+                col=_to_lsp_col(node.col),
             )
         )
         for param in node.params:
@@ -159,23 +169,28 @@ def _walk(node, table: SymbolTable):
                     name=param_name,
                     kind="parameter",
                     type_ann=param_type,
-                    line=node.line or 0,
-                    col=node.col or 0,
+                    line=_to_lsp_line(node.line),
+                    col=_to_lsp_col(node.col),
                 )
             )
+        _walk(node.body, table)
 
     elif isinstance(node, ClassDecl):
-        table.add_definition(node.name, node.line or 0, node.col or 0)
+        table.add_definition(node.name, _to_lsp_line(node.line), _to_lsp_col(node.col))
         table.add_symbol_info(
             SymbolInfo(
                 name=node.name,
                 kind="class",
                 class_fields=[f.name for f in node.fields],
                 class_methods=[m.name for m in node.methods],
-                line=node.line or 0,
-                col=node.col or 0,
+                line=_to_lsp_line(node.line),
+                col=_to_lsp_col(node.col),
             )
         )
+        for field in node.fields:
+            _walk(field, table)
+        for method in node.methods:
+            _walk(method, table)
 
     elif isinstance(node, Program):
         for stmt in node.body:
