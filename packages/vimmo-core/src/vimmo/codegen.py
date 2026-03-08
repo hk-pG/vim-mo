@@ -2,11 +2,80 @@
 VimMo Code Generator — emits VimScript from AST
 """
 
-try:
-    from vimmo.ast_nodes import *  # noqa: F403
-except ImportError:
-    from ast_nodes import *  # type: ignore[no-redef]  # noqa: F403
 from typing import List, Optional
+
+try:
+    from vimmo.ast_nodes import (
+        Node,
+        NumberLit,
+        StringLit,
+        BoolLit,
+        NullLit,
+        Ident,
+        ListLit,
+        DictLit,
+        BinOp,
+        UnaryOp,
+        Assign,
+        AugAssign,
+        Index,
+        Attr,
+        Call,
+        Lambda,
+        Await,
+        Pipeline,
+        New,
+        VarDecl,
+        FnDecl,
+        Return,
+        If,
+        For,
+        While,
+        Break,
+        Continue,
+        Echo,
+        ExprStmt,
+        Block,
+        Import,
+        ClassDecl,
+        Program,
+    )
+except ImportError:
+    from ast_nodes import (  # type: ignore[no-redef]
+        Node,
+        NumberLit,
+        StringLit,
+        BoolLit,
+        NullLit,
+        Ident,
+        ListLit,
+        DictLit,
+        BinOp,
+        UnaryOp,
+        Assign,
+        AugAssign,
+        Index,
+        Attr,
+        Call,
+        Lambda,
+        Await,
+        Pipeline,
+        New,
+        VarDecl,
+        FnDecl,
+        Return,
+        If,
+        For,
+        While,
+        Break,
+        Continue,
+        Echo,
+        ExprStmt,
+        Block,
+        Import,
+        ClassDecl,
+        Program,
+    )
 
 
 class CodegenError(Exception):
@@ -197,7 +266,7 @@ class Codegen:
                 for s in node.body.stmts:
                     self.gen_stmt(s)
                 self.indent_level -= 1
-                self.emit(f"endfunction")
+                self.emit("endfunction")
         finally:
             self.leave_scope()
 
@@ -208,11 +277,11 @@ class Codegen:
         """
         self.emit(f"function! {scope_fn}{node.name}({params})")
         self.indent_level += 1
-        self.emit(f'" async function — uses job_start internally')
+        self.emit('" async function — uses job_start internally')
         # Rewrite body: find Await nodes and wrap in job chains
         self._gen_async_body(node.body.stmts)
         self.indent_level -= 1
-        self.emit(f"endfunction")
+        self.emit("endfunction")
 
     def _gen_async_body(self, stmts: List[Node]):
         """Emit statements; Await(Call) becomes a job_start."""
@@ -242,7 +311,7 @@ class Codegen:
         self.emit(f"call add(l:__job_{jid}_result.stdout, a:data)")
         self.indent_level -= 1
         self.leave_scope()
-        self.emit(f"endfunction")
+        self.emit("endfunction")
 
         self.emit(f"function! s:__job_{jid}_exit(job, code) closure")
         self.enter_scope("fn", ["job", "code"])
@@ -251,15 +320,16 @@ class Codegen:
         self.emit(f"let l:__job_{jid}_done = 1")
         self.indent_level -= 1
         self.leave_scope()
-        self.emit(f"endfunction")
+        self.emit("endfunction")
         self.emit(
-            f'call job_start({cmd}, #{{"out_cb": function("s:__job_{jid}_out"), "exit_cb": function("s:__job_{jid}_exit")}})'
+            f'call job_start({cmd}, #{{"out_cb": function("s:__job_{jid}_out"),'
+            f' "exit_cb": function("s:__job_{jid}_exit")}})'
         )
         self.emit(f"while !l:__job_{jid}_done")
         self.indent_level += 1
-        self.emit(f"sleep 10m")
+        self.emit("sleep 10m")
         self.indent_level -= 1
-        self.emit(f"endwhile")
+        self.emit("endwhile")
 
     def _gen_job_fire_and_forget(self, node: Await):
         cmd = self.gen_expr(node.expr)
@@ -320,7 +390,7 @@ class Codegen:
         self.emit(f"function! {ctor_name}(...)")
         self.enter_scope("fn", ["..."])
         self.indent_level += 1
-        self.emit(f"let l:self = {{}}")
+        self.emit("let l:self = {}")
         for field in node.fields:
             val = self.gen_expr(field.value) if field.value else "0"
             self.emit(f"let l:self.{field.name} = {val}")
@@ -334,11 +404,11 @@ class Codegen:
                 self.gen_stmt(s)
             self.indent_level -= 1
             self.leave_scope()
-            self.emit(f"endfunction")
-        self.emit(f"return l:self")
+            self.emit("endfunction")
+        self.emit("return l:self")
         self.indent_level -= 1
         self.leave_scope()
-        self.emit(f"endfunction")
+        self.emit("endfunction")
 
     # ── Expressions ───────────────────────────────────────────────────────────
 
@@ -421,8 +491,8 @@ class Codegen:
         return f"s:{self._cap_funcref_name(name)}"
 
     def gen_binop(self, node: BinOp) -> str:
-        l = self.gen_expr(node.left)
-        r = self.gen_expr(node.right)
+        lhs = self.gen_expr(node.left)
+        rhs = self.gen_expr(node.right)
         op_map = {
             "&&": "&&",
             "||": "||",
@@ -440,7 +510,7 @@ class Codegen:
             "..": " .. ",
         }
         op = op_map.get(node.op, node.op)
-        return f"({l} {op} {r})"
+        return f"({lhs} {op} {rhs})"
 
     def gen_unary(self, node: UnaryOp) -> str:
         operand = self.gen_expr(node.operand)
@@ -499,7 +569,7 @@ class Codegen:
             "pop": lambda: f"remove({obj}, -1)",
             "len": lambda: f"len({obj})",
             "join": lambda: f"join({obj}, {self.gen_expr(args[0]) if args else chr(39) + chr(39)})",
-            "split": lambda: f"split({obj}, {self.gen_expr(args[0]) if args else chr(39) + chr(39)})",
+            "split": lambda: f"split({obj}, {self.gen_expr(args[0]) if args else chr(39) + chr(39)})",  # noqa: E501
             "keys": lambda: f"keys({obj})",
             "values": lambda: f"values({obj})",
             "has": lambda: f"has_key({obj}, {self.gen_expr(args[0])})",
@@ -563,7 +633,7 @@ class Codegen:
         return fname
 
     def gen_pipeline(self, node: Pipeline) -> str:
-        from ast_nodes import Call, Ident, Attr
+        from ast_nodes import Call, Ident
 
         left = self.gen_expr(node.left)
         right = node.right
@@ -595,7 +665,7 @@ class Codegen:
             cb_call = f"{self.gen_expr(cb_node)}()"
         self.emit(f"augroup VimMo_{event}")
         self.indent_level += 1
-        self.emit(f"autocmd!")
+        self.emit("autocmd!")
         self.emit(f"autocmd {event} {pattern} call {cb_call}")
         self.indent_level -= 1
         self.emit("augroup END")
