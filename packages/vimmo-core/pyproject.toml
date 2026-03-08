@@ -2,7 +2,7 @@
 name = "vimmo-core"
 version = "0.1.0"
 description = "VimMo Core — Lexer, Parser, and Codegen"
-dependencies = []
+dependencies = ["watchdog>=3.0"]
 
 [project.scripts]
 vimmo = "vimmo.main:main"

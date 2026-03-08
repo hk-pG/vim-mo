@@ -7,6 +7,7 @@ Usage:
   vimmo check   <file.vmo>           Syntax check only
   vimmo tokens  <file.vmo>           Dump tokens (debug)
   vimmo ast     <file.vmo>           Dump AST (debug)
+  vimmo watch   <dir>                Watch directory and auto-compile on save
 """
 
 import sys
@@ -84,6 +85,75 @@ def cmd_ast(args):
         sys.exit(1)
 
 
+def _compile_file_safe(vmo_path: Path) -> tuple[bool, str]:
+    """コンパイルを試みる。成功時は (True, vim_code)、失敗時は (False, error_message) を返す。"""
+    try:
+        source = vmo_path.read_text(encoding="utf-8")
+        tokens = Lexer(source).tokenize()
+        ast = Parser(tokens).parse()
+        vim_code = Codegen().generate(ast)
+        return True, vim_code
+    except (LexerError, ParseError, CodegenError) as e:
+        return False, str(e)
+
+
+def _compile_and_report(vmo_path: Path) -> None:
+    """ファイルをコンパイルして結果をターミナルに表示する。"""
+    ok, result = _compile_file_safe(vmo_path)
+    out_path = vmo_path.with_suffix(".vim")
+    if ok:
+        out_path.write_text(result, encoding="utf-8")
+        print(f"  ✓  {vmo_path.name} → {out_path.name}", flush=True)
+    else:
+        print(f"  ✗  {vmo_path.name}: {result}", file=sys.stderr, flush=True)
+
+
+def cmd_watch(args):
+    try:
+        from watchdog.observers import Observer
+        from watchdog.events import FileSystemEventHandler
+    except ImportError:
+        print(
+            "Error: 'watchdog' is not installed. Run: pip install watchdog",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    watch_dir = Path(args.directory).resolve()
+    if not watch_dir.is_dir():
+        print(f"Error: Not a directory: {args.directory}", file=sys.stderr)
+        sys.exit(1)
+
+    class _Handler(FileSystemEventHandler):
+        def _handle(self, path_str: str) -> None:
+            if path_str.endswith(".vmo"):
+                _compile_and_report(Path(path_str))
+
+        def on_modified(self, event):
+            if not event.is_directory:
+                self._handle(event.src_path)
+
+        def on_created(self, event):
+            if not event.is_directory:
+                self._handle(event.src_path)
+
+    import time
+
+    observer = Observer()
+    observer.schedule(_Handler(), str(watch_dir), recursive=args.recursive)
+    observer.start()
+    print(f"Watching {watch_dir} for .vmo changes... (Ctrl+C to stop)", flush=True)
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        observer.stop()
+        observer.join()
+        print("\nStopped watching.")
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="vimmo",
@@ -111,6 +181,19 @@ def main():
     p_ast = sub.add_parser("ast", help="Dump AST")
     p_ast.add_argument("input", help="Input .vmo file")
     p_ast.set_defaults(func=cmd_ast)
+
+    # watch
+    p_watch = sub.add_parser(
+        "watch", help="Watch directory and auto-compile .vmo on save"
+    )
+    p_watch.add_argument("directory", help="Directory to watch")
+    p_watch.add_argument(
+        "-r",
+        "--recursive",
+        action="store_true",
+        help="Watch subdirectories recursively",
+    )
+    p_watch.set_defaults(func=cmd_watch)
 
     args = parser.parse_args()
     args.func(args)
