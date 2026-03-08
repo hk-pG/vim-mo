@@ -56,11 +56,11 @@ PYTHONPATH=packages/vimmo-core/src python packages/vimmo-core/src/vimmo/vimmo.py
 
 ## VimScript の既知の制約
 
-| エラー | 原因 | 対処 |
-|--------|------|------|
-| E704 | `l:inc = function(...)` — 小文字始まりの funcref 変数 | `_cap_funcref_name()` で自動キャピタライズ |
-| E121 | トップレベルにホイストされたラムダが外側の `l:` 変数を参照 | inline 定義 + `closure` キーワード |
-| E932 | トップレベル関数に `closure` を付けた | `function_depth == 0` のとき `closure` を省略 |
+| エラー | 原因                                                       | 対処                                          |
+| ------ | ---------------------------------------------------------- | --------------------------------------------- |
+| E704   | `l:inc = function(...)` — 小文字始まりの funcref 変数      | `_cap_funcref_name()` で自動キャピタライズ    |
+| E121   | トップレベルにホイストされたラムダが外側の `l:` 変数を参照 | inline 定義 + `closure` キーワード            |
+| E932   | トップレベル関数に `closure` を付けた                      | `function_depth == 0` のとき `closure` を省略 |
 
 ## テストケースの追加
 
@@ -72,9 +72,24 @@ PYTHONPATH=packages/vimmo-core/src python packages/vimmo-core/src/vimmo/vimmo.py
 
 `reports/` ディレクトリには以下の2種類のファイルを記録する:
 
-| ファイル名パターン | 内容 | タイミング |
-|-----------------|------|---------|
-| `ADR-NNN-{name}.md` | 重要な設計決定の記録（背景・決定事項・変更ファイル・テスト結果）。NNN は3桁ゼロ埋め、既存ファイルを確認して次番号を使う | 設計変更を行ったとき |
-| `YYYYMMDD-{topic}.md` | 作業サマリー（完了タスク・変更ファイル一覧・テスト結果・次のステップ）。モデル名はファイル内の先頭に記載 | 作業完了時 |
+| ファイル名パターン    | 内容                                                                                                                    | タイミング           |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| `ADR-NNN-{name}.md`   | 重要な設計決定の記録（背景・決定事項・変更ファイル・テスト結果）。NNN は3桁ゼロ埋め、既存ファイルを確認して次番号を使う | 設計変更を行ったとき |
+| `YYYYMMDD-{topic}.md` | 作業サマリー（完了タスク・変更ファイル一覧・テスト結果・次のステップ）。モデル名はファイル内の先頭に記載                | 作業完了時           |
 
 詳細フォーマットは `AGENTS.md` の「ADR」「作業完了時の記録」セクションを参照。
+
+## 各パッケージの責務
+
+| パッケージ          | 主要ファイル                          | 責務                                                           |
+| ------------------- | ------------------------------------- | -------------------------------------------------------------- |
+| `vimmo-core`        | `lexer.py`, `parser.py`, `codegen.py` | `.vmo` → VimScript のトランスパイラ本体                        |
+| `vimmo-ls`          | `server.py`, `symbols.py`             | pygls ベース LSP サーバー。symbols.py でシンボルテーブルを管理 |
+| `tree-sitter-vimmo` | `grammar.js`, `queries/vimmo/`        | Treesitter パーサー定義・Neovim ハイライト                     |
+| `vscode-vimmo`      | `package.json`, `syntaxes/`           | VS Code 拡張（TextMate ハイライト、LSP クライアント未実装）    |
+
+## symbols.py の SymbolInfo 構造
+
+LSP の補完・定義ジャンプは `symbols.py` の `SymbolInfo` dataclass に依存する。
+修正時は `kind`（variable/function/class/parameter）と `defined_at`（0-base line/col）の整合性を必ず確認すること。
+定義ジャンプは 0-base → 1-base のオフセット変換が必要（LSP プロトコルは 0-base、VimMo AST は 1-base）。

@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ジョブ1: Docker Compose を使った E2E テスト
+  test:
+    name: E2E Tests (Docker)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run E2E tests via Docker Compose
+        run: docker compose run --rm test
+
+  # ジョブ2: Python コード品質チェック (flake8)
+  lint:
+    name: Lint (flake8)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install flake8
+        run: pip install flake8
+
+      - name: Run flake8
+        run: |
+          flake8 packages/vimmo-core/src/ packages/vimmo-ls/src/ \
+            --max-line-length=100
+
+  # ジョブ3: LSP ユニットテスト (pytest)
+  lsp-test:
+    name: LSP Unit Tests (pytest)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -e packages/vimmo-core
+          pip install -e "packages/vimmo-ls[test]"
+
+      - name: Run pytest
+        run: pytest packages/vimmo-ls/tests/

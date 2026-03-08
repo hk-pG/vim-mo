@@ -178,6 +178,9 @@ scope は変更対象モジュール名（例: `codegen`, `parser`, `lexer`, `ls
 4. **Test dependencies**: Tests require `vim` command available in PATH (Docker 環境では nvim を symlink)
 5. **VimScript funcref 変数名制約 (E704)**: `l:` / `s:` スコープの変数が funcref を保持する場合、変数名は**大文字で始まる必要**がある (`l:Inc` は OK、`l:inc` は NG)。codegen でラムダを変数に代入する際はキャピタライズが必要。
 6. **VimScript closure (E121 / E932)**: multi-line ラムダをスクリプトトップレベルにホイストすると外側の `l:` 変数をキャプチャできない。囲む関数の**内部で定義**し `closure` キーワードを付与すること (Vim 8+ / Neovim 必須)。トップレベル関数に `closure` を付けると E932 エラーになる。
+7. **VimScript E704/E121 の同時修正**: E704（funcref 変数の小文字名）を修正する際は、必ず E121（クロージャスコープ破裂）も確認すること。`l:inc = ...` を `l:Inc = ...` にするだけでは不十分で、block body lambda は inline 定義 + `closure` キーワードの戦略も合わせて確認する。
+8. **pygls バージョン確認**: LSP 関連の修正を着手する前に必ず `pip show pygls` でバージョンを確認すること。pygls 2.x では `workspace.get_document()`・`show_message()`・`publish_diagnostics()` が廃止されており、互換ラッパー経由（`ls.protocol.notify()` 等）での実装が必要。
+9. **"テスト PASS" ≠ "全て正常"**: `docker compose run --rm test` が成功しても、VimScript の暗黙的なエラー無視（未定義変数のサイレント化等）により実行時バグが潜む可能性がある。重要な変更後は実際に Neovim でプラグインを動作させて確認すること。
 
 ### File Locations
 
@@ -203,6 +206,51 @@ scope は変更対象モジュール名（例: `codegen`, `parser`, `lexer`, `ls
   - 変更されたファイル
   - テスト結果
 
+### Issue 対応の TDD ワークフロー
+
+GitHub Issue に取り組む際は以下のフローを守る。
+詳細なチェックリストは `.github/prompts/start-issue.prompt.md` と `.github/prompts/complete-issue.prompt.md` を参照。
+
+```
+Issue open
+  ↓
+【調査】 Explore: 関連ファイル・既存パターン・影響範囲の特定
+  ↓
+【設計】 Architect に委任するか判断（下記基準参照）
+  ↓
+【Red】  テストを先に作成 → コンパイル/実行が失敗することを確認
+  ↓
+【Green】 最小実装 → テストが通ることを確認
+  ↓
+【文書】  DESIGN.md を更新（設計意図が変わった場合のみ）
+  ↓
+【記録】  ADR（設計変更あり）+ reports/ サマリー
+  ↓
+【PR】   gh pr create → CI → merge
+```
+
+#### Architect に委任する判断基準
+
+以下のいずれかに該当する場合、実装前に Architect を起動する:
+
+- 新しい構文・言語機能の追加（AST/Lexer/Parser/Codegen の変更を伴う）
+- 既存インターフェースへの破壊的変更の可能性
+- 複数モジュールにまたがる変更で影響範囲が不明確
+- VimScript の制約（E704/E121/E932 等）が絡む複雑な設計
+
+バグ修正・ドキュメント修正では Architect を省略して Dev Engineer に直接委任してよい。
+
+#### ドキュメントの役割分担
+
+| ドキュメント | 役割（何を書くか） | 更新タイミング |
+|-------------|-----------------|--------------|
+| **テストケース (.vmo)** | 詳細な動作仕様（正確な定義） | Red フェーズ（テスト作成時） |
+| **DESIGN.md** | 設計意図・概念・言語全体の構造 | 機能の設計決定時のみ |
+| **ADR** | なぜその設計にしたか | 実装完了後 |
+| **reports/ サマリー** | 何をしたか・テスト結果 | Issue クローズ時 |
+
+> **原則:** テストが「動く仕様書」として機能する。DESIGN.md に細かい動作を書くと二重管理になるため、DESIGN.md は「意図・概念・制約」に特化させる。
+
 ### 作業完了時の記録
 
 - 作業終了時に `reports/YYYYMMDD-{topic}.md` に作業内容を記録する
@@ -213,3 +261,41 @@ scope は変更対象モジュール名（例: `codegen`, `parser`, `lexer`, `ls
   - 新規作成/変更したファイル
   - テスト結果
   - 次のステップ
+
+## デバッグチェックリスト
+
+### LSP が動作しない（補完・診断・定義ジャンプが効かない）
+
+1. `vimmo-ls.log` を確認: `cat /tmp/vimmo-ls.log` または Docker コンテナ内の `/app/vimmo-ls.log`
+2. LSP サーバー自体は起動しているか確認: Neovim で `:LspInfo` を実行
+3. pygls バージョンを確認: `pip show pygls`（2.x 系の API 変更に注意）
+4. `packages/vimmo-ls/tests/` の pytest を実行して LSP ロジック単体の健全性を確認
+5. server.py の `show_message` / `publish_diagnostics` が pygls 2.x 互換ラッパー経由か確認
+
+### シンタックスハイライトが Neovim で表示されない
+
+1. `queries/vimmo/` サブディレクトリが存在するか確認（`queries/` 直下ではなく `queries/vimmo/` が必要）
+2. Treesitter のパーサーがインストールされているか: `:TSInstall vimmo` を実行
+3. `runtimepath` に tree-sitter-vimmo のルートが含まれているか
+4. `queries/vimmo/highlights.scm` の構文エラーがないか: `:TSPlaygroundToggle` で確認
+5. Neovim を再起動して再確認
+
+### VimScript 実行時エラー（E704 / E121 / E932）
+
+| エラー | 確認箇所 | 対処 |
+|--------|---------|------|
+| E704 | `l:`/`s:` スコープの funcref 変数名 | `_cap_funcref_name()` が呼ばれているか確認 |
+| E121 | block body lambda が外側の `l:` 変数を参照 | inline 定義 + `closure` キーワードになっているか確認 |
+| E932 | トップレベル関数に `closure` が付いている | `function_depth == 0` 時の `closure` 省略ロジックを確認 |
+
+### コンパイルエラー（ParseError / CodegenError）
+
+```bash
+# トークン列を確認
+PYTHONPATH=packages/vimmo-core/src python packages/vimmo-core/src/vimmo/vimmo.py tokens <file.vmo>
+
+# AST を確認
+PYTHONPATH=packages/vimmo-core/src python packages/vimmo-core/src/vimmo/vimmo.py ast <file.vmo>
+```
+
+エラーメッセージに行・列番号が含まれているので、`ast` コマンドで部分的なパースを確認する。
